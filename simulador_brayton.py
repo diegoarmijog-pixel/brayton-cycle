@@ -1729,12 +1729,12 @@ if tab1.is_active:
         # Cargar imagen PNG
         if os.path.exists(diagrama_path_png):
             imagen = Image.open(diagrama_path_png)
-            st.image(imagen, caption="Diagrama del proceso", use_column_width=True)
+            st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
         else:
             # Intentar con ruta relativa
             try:
                 imagen = Image.open("diagrama_brayton.png")
-                st.image(imagen, caption="Diagrama del proceso", use_column_width=True)
+                st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
             except:
                 st.warning("⚠️ No se pudo cargar el diagrama.")
     except FileNotFoundError:
@@ -1872,7 +1872,6 @@ if tab1.is_active:
                     # SOLO se comprime la fracción recirculada (C8 → C9)
                     W_CO2_recirc_calc = n_CO2_recirculado * (simulador.corrientes[9].h - simulador.corrientes[8].h) / 1e6
                     st.write(f"**W_comp_CO2_recirculación** = {n_CO2_recirculado:.2f} × ({simulador.corrientes[9].h/1000:.2f} - {simulador.corrientes[8].h/1000:.2f}) = **{W_CO2_recirc_calc:.3f} MW**")
-                    st.info("ℹ️ **DIAGRAMA CORREGIDO:** Solo se comprime la fracción recirculada (C8→C9). El CO₂ capturado (C12) sale a baja presión.")
 
                     # MOSTRAR RATIO DE COMPRESIÓN (C8 → C9)
                     P8 = simulador.corrientes[8].P / 1e6  # MPa
