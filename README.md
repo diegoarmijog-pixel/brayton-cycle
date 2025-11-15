@@ -12,10 +12,8 @@ Simulador termodinámico avanzado para análisis de ciclos Brayton con oxicombus
 - **Recirculación de CO₂**: Control térmico y dilución de llama
 
 ### ⚙️ Múltiples Combustibles
-- **Gas Natural**: 95% CH₄, 3% C₂H₆, 1% C₃H₈, 1% N₂
-- **Metano Puro**: 100% CH₄
-- **Gas de Síntesis**: Relaciones H₂/CO variables (1:1, 2:1, etc.)
-- **Hidrógeno**: 100% H₂
+- **Gas Natural**: 95.96% CH₄, 3.03% C₂H₆, 1.01% C₃H₈
+- **Gas de Síntesis**: 40% CO, 50% H₂, 5% CH₄, 5% CO₂
 - **Propano**: 100% C₃H₈
 - **Etanol**: 100% C₂H₅OH
 
@@ -473,14 +471,12 @@ st.session_state['simulacion_exitosa']  # Flag de éxito
 
 ### Poder Calorífico Inferior (LHV)
 
-| Combustible | LHV (J/mol) | Fuente |
-|-------------|-------------|--------|
-| Gas Natural | 802000 | NIST |
-| Metano | 802000 | NIST |
-| Syngas (1:1) | 250000 | Calculado conservador |
-| Hidrógeno | 241800 | NIST |
-| Propano | 2043000 | NIST |
-| Etanol | 1277000 | NIST |
+| Combustible | LHV (J/mol) | Notas |
+|-------------|-------------|-------|
+| Gas Natural | 802000 | Mezcla 95.96% CH₄, 3.03% C₂H₆, 1.01% C₃H₈ |
+| Gas de Síntesis | 250000 | Mezcla 40% CO, 50% H₂, 5% CH₄, 5% CO₂ (conservador) |
+| Propano | 2043000 | C₃H₈ puro (NIST) |
+| Etanol | 1277000 | C₂H₅OH puro (NIST) |
 
 ---
 
