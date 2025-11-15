@@ -1,0 +1,22 @@
+# Simulador de Ciclo Brayton con Oxicombustión
+# Dependencias Python para el simulador termodinámico
+
+# Interfaz web interactiva
+streamlit>=1.28.0
+
+# Manipulación y análisis de datos
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualización
+matplotlib>=3.7.0
+plotly>=5.17.0
+
+# Propiedades termodinámicas (HEOS, ecuaciones de estado)
+CoolProp>=6.5.0
+
+# Manejo de imágenes (diagrama del proceso)
+Pillow>=10.0.0
+
+# Optimización numérica (differential_evolution para optimizador)
+scipy>=1.11.0
