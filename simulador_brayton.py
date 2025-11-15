@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.optimize import differential_evolution
 
-# estos es un comentario de prueba.... eliminar despues
 
 # Configuración de la página
 st.set_page_config(page_title="Simulador Ciclo Brayton Oxicombustión", layout="wide")
