@@ -229,7 +229,8 @@ La aplicación se abrirá en `http://localhost:8501`
 - **Tipo de Combustible**: Selección de lista desplegable
 - **Flujo Molar Combustible**: 1-1000 mol/s (default: 10 mol/s)
 - **Fracción de Recirculación CO₂**: 0-95% (default: 85%)
-- **Presión Almacenamiento CO₂**: 50-300 bar (default: 150 bar)
+- **Presión Recirculación CO₂**: Igual a P_combustión (automática)
+- **Temperatura Separador**: Calculada automáticamente (T_sat - 10K)
 
 ### 3. Ejecutar Simulación
 
@@ -237,47 +238,201 @@ Presionar botón **"🚀 SIMULAR"**
 
 El simulador ejecuta:
 1. Cálculo estequiométrico de combustión
-2. Balance energético (determina T_combustión)
+2. Balance energético iterativo (determina T_combustión)
 3. Expansión en turbina (trabajo generado)
-4. Proceso de separación de agua
-5. Sistema de recirculación y captura
-6. Balances energéticos totales
+4. Recuperador de calor (precalienta CO₂ de recirculación)
+5. Separación de agua por condensación
+6. División de flujo: CO₂ a captura vs. recirculación
+7. Compresión de CO₂ recirculado y retorno a combustor
+8. Balances energéticos totales y eficiencias
 
-### 4. Resultados
+### 4. Navegación y Resultados
 
-#### Pestaña 1: Diagrama del Proceso
-- Diagrama visual del ciclo
+El simulador presenta una **interfaz de navegación jerárquica de 2 niveles** con 3 secciones principales:
+
+#### 📊 Sección 1: Datos Simulación
+Contiene 4 vistas accesibles mediante submenú:
+
+**Vista 1: Diagrama del Proceso**
+- Diagrama visual del ciclo completo
 - **Balance Energético**:
   - Trabajo turbina (MW)
-  - Trabajos de compresión (MW)
+  - Trabajo compresor combustible (MW)
+  - Trabajo compresor CO₂ recirculación (MW)
   - Trabajo ASU (MW)
   - Trabajo neto (MW)
   - Calor de combustión (MW)
-  - **Eficiencia térmica (%)**
+  - Temperatura de combustión calculada (°C)
+- **Tres Eficiencias**:
+  - **η Ciclo**: Eficiencia del ciclo sin penalizaciones (W_neto / Q_combustión)
+  - **η con ASU**: Eficiencia incluyendo trabajo ASU
+  - **η Global (CCS)**: Eficiencia global incluyendo todos los consumos
 - **Flujos de CO₂**:
   - CO₂ total generado
-  - CO₂ recirculado
-  - CO₂ capturado
+  - CO₂ recirculado (mol/s)
+  - CO₂ capturado (mol/s)
   - Fracción de recirculación efectiva
+- **Advertencias dinámicas**: Alertas sobre T_combustión fuera de rango óptimo
 
-#### Pestaña 2: Propiedades Termodinámicas
+**Vista 2: Tabla de Propiedades**
 Tabla completa con 13 corrientes:
 - Nombre de corriente
 - Temperatura (°C, K)
 - Presión (bar, MPa)
 - Entalpía específica (kJ/mol)
 - Entropía específica (J/(mol·K))
+- Densidad (kg/m³)
 - Flujo molar (mol/s)
 - Flujo másico (kg/s)
-- Composición molar (%)
+- Composición molar completa
 
 Botón de **descarga CSV** para análisis externo.
 
-#### Pestaña 3: Diagrama P-H
-Gráfico interactivo Presión vs. Entalpía con trayectoria del ciclo.
+**Vista 3: Diagrama P-H**
+Gráfico interactivo Presión vs. Entalpía específica:
+- Muestra trayectoria del ciclo completo
+- Puntos etiquetados con nombres de corrientes
+- Zoom y pan interactivos (Plotly)
 
-#### Pestaña 4: Diagrama T-S
-Gráfico interactivo Temperatura vs. Entropía con trayectoria del ciclo.
+**Vista 4: Diagrama T-S**
+Gráfico interactivo Temperatura vs. Entropía específica:
+- Visualiza procesos reversibles e irreversibles
+- Identifica pérdidas por irreversibilidades
+- Herramientas interactivas de análisis
+
+#### 🔬 Sección 2: Análisis de Sensibilidad
+Análisis paramétrico automatizado:
+
+**Configuración**:
+- **Variable a analizar**: Selección entre P_combustión, f_recirculación, efectividad recuperador
+- **Rango de variación**: Min y Max configurables
+- **Número de puntos**: 5-50 puntos de cálculo
+
+**Resultados**:
+- **Gráficos múltiples**:
+  - Eficiencias (η_ciclo, η_ASU, η_CCS) vs. variable
+  - Trabajos (W_turbina, W_neto) vs. variable
+  - T_combustión calculada vs. variable
+  - Flujos de CO₂ (recirculado, capturado) vs. variable
+- **Tabla de resultados**: Valores numéricos exportables a CSV
+- **Identificación de óptimos**: Máximos y mínimos destacados
+
+#### 🎯 Sección 3: Optimización
+Optimización multiparamétrica automática usando algoritmos evolutivos:
+
+**Configuración**:
+- **Tipo de combustible**: Selección fija para la optimización
+- **Número de iteraciones**: 10-500 generaciones (default: 100)
+- **Variables optimizadas simultáneamente**:
+  - Presión de combustión (50-250 bar)
+  - Fracción de recirculación (60-95%)
+  - Efectividad recuperador (50-95%)
+
+**Algoritmo**: Differential Evolution (scipy.optimize)
+
+**Función objetivo**: Maximizar η_CCS (eficiencia global con CCS)
+
+**Restricciones**:
+- T_combustión: 1000-2000°C
+- Trabajo neto > 0 MW
+- Balance energético convergido
+
+**Resultados de optimización**:
+- **Parámetros óptimos encontrados**: Tabla con valores óptimos
+- **Eficiencias alcanzadas**: η_ciclo, η_ASU, η_CCS
+- **Balance energético óptimo**: Trabajos y potencias
+- **Propiedades de corrientes**: Tabla completa del punto óptimo
+- **Descarga de resultados**: CSVs con parámetros y corrientes óptimas
+
+---
+
+## Características Técnicas Avanzadas
+
+### Sistema de Convergencia Iterativa
+
+El simulador implementa un **algoritmo de convergencia de punto fijo** para resolver la dependencia circular de la recirculación de CO₂:
+
+**Problema**: La corriente 11 (CO₂ precalentado) entra al combustor, pero su flujo y temperatura dependen de las corrientes 3→4→5→...→11
+
+**Solución implementada**:
+```python
+# Iteración hasta convergencia (max 30 iteraciones)
+for iter in range(max_iter):
+    # 1. Estimar n_CO2_recirc y T_C11
+    # 2. Calcular corriente 3 (combustión)
+    # 3. Seguir el ciclo: C3→C4→...→C11
+    # 4. Comparar n_CO2_recirc_nuevo con estimación
+    # 5. Si |diferencia| < 1e-4 → convergencia
+    # 6. Sino → actualizar estimación y repetir
+```
+
+**Criterios de convergencia**:
+- Error en flujo molar: |Δn_CO2| < 1e-4 mol/s
+- Error en temperatura: |ΔT_C11| < 1 K (implícito)
+- Máximo 30 iteraciones (típicamente converge en 3-8 iteraciones)
+
+### Cálculo Automático de Parámetros
+
+**1. Temperatura de Separador**
+```python
+T_separador = T_saturacion(H2O, P_separador) - 10 K
+```
+- Garantiza condensación completa del agua
+- Margen de seguridad: 10°C bajo T_sat
+- Validación: T_separador ≥ 278.15 K (5°C)
+
+**2. Temperatura de Combustión**
+```python
+# Balance energético: H_entrada + Q_combustion = H_salida
+# Resolver para T_combustion usando brentq
+T_combustion = brentq(objetivo, T_min=1273 K, T_max=2273 K)
+```
+- Método numérico de Brent (robusto y rápido)
+- Rango físico: 1000-2000°C
+- Tolerancia: ±1 K
+
+**3. Presión de Recirculación**
+```python
+P_recirculacion = P_combustion  # Automático
+```
+- Evita caída de presión innecesaria
+- Minimiza trabajo de compresión
+
+### Validaciones y Restricciones
+
+El simulador implementa **validaciones multinivel**:
+
+**Nivel 1: Restricciones físicas**
+- P_salida < P_combustion (expansión posible)
+- 0 ≤ f_recirculación < 1.0 (flujo finito)
+- T_combustion ≤ 2000°C (límite materiales)
+- T_separador > T_ambiente (condensación posible)
+
+**Nivel 2: Advertencias operacionales**
+- T_combustion > 1800°C → Advertencia (degradación materiales)
+- T_combustion < 1100°C → Advertencia (combustión inestable)
+- f_recirculación > 97% → Advertencia (sistema inestable)
+- P_salida resulta en T_separador muy alta → Advertencia
+
+**Nivel 3: Errores críticos**
+- Flujo negativo en alguna corriente → Error + detener
+- Balance energético no converge → Error + diagnóstico
+- Propiedades termodinámicas fuera de rango CoolProp → Error
+
+### Sistema de Persistencia (Session State)
+
+El simulador utiliza **st.session_state** para mantener resultados entre cambios de vista:
+
+```python
+st.session_state['simulador']  # Objeto SimuladorBrayton completo
+st.session_state['simulacion_exitosa']  # Flag de éxito
+```
+
+**Beneficios**:
+- Navegar entre pestañas sin re-simular
+- Cambiar parámetros de visualización sin perder resultados
+- Comparar diferentes vistas de los mismos datos
+- Exportar datos desde cualquier vista
 
 ---
 
@@ -336,7 +491,7 @@ Gráfico interactivo Temperatura vs. Entropía con trayectoria del ciclo.
 ```
 simulador definitivo/
 │
-├── simulador_brayton.py                      # Código principal (3508 líneas)
+├── simulador_brayton.py                      # Código principal (~3140 líneas)
 ├── README.md                                 # Este archivo
 ├── requirements.txt                          # Dependencias Python
 ├── diagrama_brayton_corregido.png           # Diagrama del proceso
@@ -384,45 +539,78 @@ class Corriente:
     Representa un flujo de materia con propiedades termodinámicas.
 
     Atributos:
-        T, P: Temperatura y presión
+        nombre: str
+        T: float (temperatura en K)
+        P: float (presión en Pa)
         composicion: Dict[str, float] (fracciones molares)
         flujo_molar: float (mol/s)
-        h, s, rho: Propiedades calculadas
+        h: float (entalpía específica J/mol)
+        s: float (entropía específica J/(mol·K))
+        rho: float (densidad kg/m³)
 
     Métodos:
         calcular_propiedades(metodo_mezcla=None)
-            - None → PR con kij (default)
-            - "fugacidad" → HEOS + fugacidad (combustión)
+            - None → Selección automática:
+              · Componente puro → HEOS (CoolProp)
+              · Mezcla → Peng-Robinson con kij experimental
+            - "fugacidad" → HEOS individual + ponderación por fugacidad
+              (usado en productos de combustión a alta T)
     """
 
 class Combustible:
     """
-    Define características de combustibles.
+    Define características de combustibles disponibles.
 
     Atributos:
-        tipo: str
-        composicion: Dict[str, float]
-        LHV: float (J/mol)
+        tipo: str (Gas Natural, Metano, Hidrógeno, etc.)
+        composicion: Dict[str, float] (fracciones molares)
+        LHV: float (poder calorífico inferior en J/mol)
 
     Métodos:
-        calcular_productos_combustion(n_O2) → Dict[str, float]
+        calcular_O2_estequiometrico(n_combustible) → float
+            Calcula O₂ necesario para combustión completa
+
+        calcular_productos_combustion(n_combustible, n_O2) → Dict[str, float]
+            Retorna composición de productos {CO2: x, H2O: y, N2: z}
     """
 
 class SimuladorBrayton:
     """
-    Motor principal de simulación del ciclo completo.
+    Motor principal de simulación del ciclo completo de Brayton con oxicombustión.
 
     Atributos:
-        corrientes: List[Corriente] (13 corrientes C0-C12)
-        params: Dict (parámetros del ciclo)
-        resultados: Dict (W, Q, η)
+        params: Dict (parámetros de entrada del ciclo)
+        corrientes: Dict[int, Corriente] (13 corrientes numeradas)
+        W_neto: float (trabajo neto en MW)
+        W_turbina: float (trabajo turbina en MW)
+        W_ASU: float (trabajo ASU en MW)
+        W_CO2comp_recirculacion: float (trabajo comp. CO₂ recirc. en MW)
+        Q_combustion: float (calor de combustión en MW)
+        T_combustion_calculada: float (temperatura combustión en K)
+        eta_cycle: float (eficiencia ciclo base %)
+        eta_O2: float (eficiencia con penalización ASU %)
+        eta_CCS: float (eficiencia global con CCS %)
 
     Métodos:
-        ejecutar_simulacion() → bool
-        calcular_temperatura_combustion() → float
-        calcular_trabajo_turbina() → float
-        calcular_compresores() → Dict[str, float]
-        optimizar_parametros() → Dict
+        simular() → bool
+            Ejecuta simulación completa del ciclo con iteración de convergencia
+            para recirculación de CO₂
+    """
+
+# Funciones auxiliares globales:
+
+def calcular_T_combustion_balance(H_entrada, n_productos, Q_combustion,
+                                   P_combustion, comp_productos,
+                                   T_min, T_max) → float
+    """
+    Calcula temperatura de combustión mediante balance energético iterativo
+    usando método brentq (scipy.optimize)
+    """
+
+def calcular_T_separador_automatica(P_separador_Pa, delta_T=10.0) → float
+    """
+    Calcula temperatura óptima del separador para condensación completa:
+    T_separador = T_saturacion(H2O, P) - delta_T
     """
 ```
 
@@ -431,33 +619,92 @@ class SimuladorBrayton:
 ```
 1. Inicialización Streamlit
    ↓
-2. Captura de parámetros de usuario
+2. Captura de parámetros de usuario (sidebar)
+   ├─ Condiciones operacionales
+   ├─ Eficiencias de equipos
+   └─ Parámetros del ciclo
    ↓
-3. Crear instancia SimuladorBrayton
+3. Usuario presiona "🚀 SIMULAR"
    ↓
-4. ejecutar_simulacion()
-   ├─ Corriente C0: Combustible ambiente
-   ├─ Corriente C1: Compresión combustible
-   ├─ Corriente C2: O₂ de ASU
-   ├─ Balance combustión → T_combustión (iterativo)
-   ├─ Corriente C3: Productos combustión
-   ├─ Corriente C4: Expansión turbina
-   ├─ Corriente C5: Después de recuperador (caliente)
-   ├─ Corriente C6: Antes de separador
-   ├─ Corriente C7: H₂O líquida
-   ├─ Corriente C8: CO₂ seco
-   ├─ División flujo
-   ├─ Corriente C9: CO₂ a captura
-   ├─ Corriente C11: CO₂ almacenamiento
-   ├─ Corriente C12: CO₂ a recirculación
-   ├─ Corriente C8: CO₂ comprimido (recirc)
-   └─ Corriente C10: CO₂ precalentado
+4. Crear instancia SimuladorBrayton(parametros)
    ↓
-5. Calcular trabajos y calores
+5. simular() - Secuencia de cálculo:
+   │
+   ├─ Inicializar objeto Combustible
+   │
+   ├─ Corriente 1: Combustible comprimido
+   │  └─ Compresión desde P_amb a P_combustión con η_comp_fuel
+   │
+   ├─ Corriente 2: Oxígeno de ASU
+   │  └─ Calcular O₂ estequiométrico necesario
+   │
+   ├─ ITERACIÓN DE CONVERGENCIA (hasta 30 iteraciones):
+   │  │  (Resuelve dependencia circular: C11 → C3 → ... → C11)
+   │  │
+   │  ├─ Estimación inicial: n_CO2_recirc, T_C11
+   │  │
+   │  ├─ Corriente 3: Productos de combustión
+   │  │  ├─ Mezclar C1 + C2 + C11 (recirculación)
+   │  │  ├─ Calcular composición productos
+   │  │  ├─ Balance energético → T_combustión (brentq)
+   │  │  └─ Validar T en rango [1000-2000°C]
+   │  │
+   │  ├─ Corriente 4: Salida turbina
+   │  │  └─ Expansión isentrópica + η_turbina
+   │  │
+   │  ├─ Corriente 5: Salida recuperador (lado caliente)
+   │  │  └─ Enfriamiento según efectividad ε
+   │  │
+   │  ├─ Corriente 6: Entrada separador
+   │  │  └─ Enfriamiento a T_separador (T_sat - 10K)
+   │  │
+   │  ├─ Corriente 7: H₂O líquida condensada
+   │  │  └─ Separación por condensación completa
+   │  │
+   │  ├─ Corriente 8: CO₂ seco post-separador
+   │  │  └─ Gases sin H₂O
+   │  │
+   │  ├─ División de flujo (fracción_recirculacion):
+   │  │  ├─ Corriente 12: CO₂ a captura (1 - f_recir)
+   │  │  └─ Corriente 9: CO₂ a recirculación (f_recir)
+   │  │
+   │  ├─ Corriente 10: CO₂ capturado comprimido
+   │  │  └─ Compresión a P_storage con η_comp_CO2
+   │  │
+   │  ├─ Corriente 9: CO₂ recirculado comprimido
+   │  │  └─ Compresión a P_combustión con η_comp_CO2
+   │  │
+   │  ├─ Corriente 11: CO₂ precalentado (retorna a combustor)
+   │  │  └─ Calentamiento en recuperador (lado frío)
+   │  │
+   │  ├─ Verificar convergencia:
+   │  │  └─ |n_CO2_recirc_nuevo - n_CO2_recirc_old| < 1e-4
+   │  │
+   │  └─ Si converge → salir; sino → siguiente iteración
+   │
+   ├─ Calcular trabajos:
+   │  ├─ W_turbina = n_3 × (h_3 - h_4) / 1e6 [MW]
+   │  ├─ W_comp_fuel = n_1 × (h_1 - h_0) / 1e6 [MW]
+   │  ├─ W_comp_CO2_recirc = n_9 × (h_9 - h_8) / 1e6 [MW]
+   │  ├─ W_comp_captura = n_12 × (h_10 - h_12) / 1e6 [MW]
+   │  └─ W_ASU = n_O2 × 7000 / 1e6 [MW]
+   │
+   ├─ Calcular eficiencias:
+   │  ├─ Q_combustion = n_comb × LHV / 1e6 [MW]
+   │  ├─ η_ciclo = W_neto / Q_combustion × 100 [%]
+   │  ├─ η_O2 = (W_neto - W_ASU) / Q_combustion × 100 [%]
+   │  └─ η_CCS = (W_turb - ΣW_comp - W_ASU) / Q_comb × 100 [%]
+   │
+   └─ Retornar True si exitoso
    ↓
-6. Calcular eficiencia térmica
+6. Guardar resultados en st.session_state
    ↓
-7. Generar resultados y visualizaciones
+7. Navegación y visualización:
+   ├─ Menú principal (3 opciones)
+   │  ├─ 📊 Datos Simulación (4 subvistas)
+   │  ├─ 🔬 Análisis de Sensibilidad
+   │  └─ 🎯 Optimización
+   └─ Renderizar contenido según selección
 ```
 
 ---
@@ -505,26 +752,72 @@ class SimuladorBrayton:
 
 ---
 
-## Optimización y Mejora Continua
+## Optimización Automática
 
 ### Funcionalidad de Optimización
 
-El simulador incluye un **optimizador automático** que busca maximizar eficiencia térmica ajustando:
+El simulador incluye un **módulo de optimización multiparamétrica** (Sección 🎯 Optimización) que busca maximizar la eficiencia global η_CCS ajustando simultáneamente:
 
-- Presión de combustión (50-250 bar)
-- Fracción de recirculación CO₂ (60-95%)
-- Efectividad del recuperador (50-95%)
+**Variables optimizadas**:
+- Presión de combustión: 50-250 bar
+- Fracción de recirculación CO₂: 60-95%
+- Efectividad del recuperador: 50-95%
 
-**Algoritmo**: Nelder-Mead simplex (scipy.optimize)
+**Algoritmo**: Differential Evolution (scipy.optimize.differential_evolution)
+- Algoritmo evolutivo global
+- No requiere gradientes
+- Explora ampliamente el espacio de parámetros
+- Robusto ante óptimos locales
 
-**Restricciones**:
-- T_combustión < 2000°C
-- Trabajo neto > 0
-- Balance energético cerrado
+**Función objetivo**: Maximizar η_CCS (eficiencia global con CCS)
+```python
+η_CCS = (W_turbina - W_comp_fuel - W_comp_CO2 - W_ASU) / Q_combustion × 100
+```
+
+**Restricciones implementadas**:
+- T_combustión entre 1000-2000°C (rango físicamente realista)
+- Trabajo neto > 0 MW (ciclo productivo)
+- Convergencia del balance energético
+- Fracción recirculación < 1.0 (evita flujo infinito)
+
+**Parámetros fijos durante optimización**:
+- Tipo de combustible (seleccionado por usuario)
+- Flujo de combustible (base de cálculo)
+- Eficiencias de equipos (turbina, compresores)
+- Temperatura ambiente
+- Presión salida turbina
+
+**Resultados exportables**:
+- CSV con parámetros óptimos encontrados
+- CSV con propiedades termodinámicas de todas las corrientes en punto óptimo
+- Visualización de eficiencias alcanzadas
+- Balance energético completo del punto óptimo
+
+### Análisis de Sensibilidad
+
+El simulador incluye un **módulo de análisis paramétrico** (Sección 🔬) que permite estudiar el efecto de variables individuales:
+
+**Variables analizables**:
+- Presión de combustión
+- Fracción de recirculación CO₂
+- Efectividad del recuperador
+
+**Configuración**:
+- Rango de variación: Min y Max definibles
+- Número de puntos: 5-50 simulaciones
+- Parámetros fijos: Resto de variables constantes
+
+**Resultados generados**:
+- Gráficos de eficiencias (η_ciclo, η_O2, η_CCS) vs. variable
+- Gráficos de trabajos (W_turbina, W_neto) vs. variable
+- Gráfico de T_combustión calculada vs. variable
+- Gráfico de flujos de CO₂ (recirculado, capturado)
+- Tabla de resultados exportable a CSV
+- Identificación automática de máximos/mínimos
 
 ### Casos de Validación
 
-El código incluye validación contra:
+El código ha sido validado contra:
 
 1. **Caso CO₂ puro supercrítico** (500 K, 100 bar)
    - Comparación HEOS vs. datos NIST
@@ -536,7 +829,11 @@ El código incluye validación contra:
 
 3. **Ciclo Brayton simple** (solo CH₄, sin recirculación)
    - Comparación con ciclo Brayton clásico
-   - Eficiencia coherente con literatura
+   - Eficiencia coherente con literatura (35-45%)
+
+4. **Balance energético global**
+   - Verificación: ΣH_entrada = ΣH_salida + W_turbina
+   - Error de cierre < 0.1% en condiciones normales
 
 ---
 
@@ -596,13 +893,26 @@ El código incluye validación contra:
 
 ## Changelog
 
+### Versión 4.0 (Noviembre 2024) - ACTUAL
+- ✅ **Nueva interfaz de navegación jerárquica** de 2 niveles con 3 secciones principales
+- ✅ **Módulo de Optimización** con algoritmo Differential Evolution
+- ✅ **Módulo de Análisis de Sensibilidad** con gráficos interactivos
+- ✅ **Iteración de convergencia** para recirculación de CO₂ (hasta 30 iteraciones)
+- ✅ **Tres métricas de eficiencia**: η_ciclo, η_O2 (con ASU), η_CCS (global)
+- ✅ **Cálculo automático de T_separador** basado en T_saturación
+- ✅ **Advertencias dinámicas** sobre T_combustión fuera de rango óptimo
+- ✅ **Session state** para persistencia de resultados entre vistas
+- ✅ **Exportación CSV** de resultados, parámetros y corrientes
+- ✅ **Validación de restricciones** (f_recirculación < 1.0, presiones coherentes)
+- ✅ **Documentación README** actualizada con estructura completa
+
 ### Versión 3.0 (Noviembre 2024)
 - ✅ Implementación de kij experimental para CO₂-H₂O (0.1896)
 - ✅ Eliminación de ecuaciones SRK e ideal (código limpiado)
 - ✅ Documentación consolidada actualizada
 - ✅ Método dual: HEOS para puros, PR para mezclas
 - ✅ Correcciones de exceso complementarias a kij
-- ✅ Optimizador de parámetros del ciclo
+- ✅ Optimizador básico de parámetros del ciclo
 - ✅ Validación con datos experimentales
 
 ### Versión 2.0 (Noviembre 2024)
@@ -610,11 +920,13 @@ El código incluye validación contra:
 - Correcciones CO₂-H₂O de exceso
 - Sistema de 13 corrientes completo
 - Diagramas P-H y T-S interactivos
+- Separador de agua automático
 
 ### Versión 1.0 (Octubre 2024)
 - Versión inicial del simulador
 - Interfaz Streamlit básica
 - Cálculos termodinámicos fundamentales
+- Ciclo Brayton simple sin recirculación
 
 ---
 
