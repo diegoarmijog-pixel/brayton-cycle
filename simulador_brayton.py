@@ -2499,34 +2499,6 @@ if tab5.is_active:
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # Explicación termodinámica del comportamiento
-        st.info(
-            "ℹ️ **Interpretación Termodinámica del Gráfico:**\n\n"
-            "**Relación x_H₂O(C4) vs f_recirculación:**\n"
-            "- **↑ Recirculación** → Más CO₂ recirculado en C3 → **Diluye productos de combustión** → **↓ x_H₂O** en C4\n"
-            "- **↓ Recirculación** → Menos dilución por CO₂ → Mayor fracción de productos (H₂O + CO₂ fresco) → **↑ x_H₂O** en C4\n\n"
-            "**¿Por qué η_Global aumenta hasta un punto y luego baja?**\n\n"
-            "**Efecto 1 - Trabajo del Compresor CO₂ (negativo):**\n"
-            "- ↓ x_H₂O significa ↑ recirculación → ↑ W_comp_CO₂ (más CO₂ a comprimir desde baja P hasta alta P)\n"
-            "- Esto **REDUCE** η_Global (más trabajo parásito consumido)\n\n"
-            "**Efecto 2 - Potencia de la Turbina (positivo):**\n"
-            "- ↑ Recirculación → ↑ flujo másico total en turbina (más moles de gas) → ↑ W_turbina\n"
-            "- Esto **AUMENTA** η_Global (más potencia generada)\n\n"
-            "**Efecto 3 - Recuperación de Calor (positivo):**\n"
-            "- ↑ Recirculación → Mayor flujo de CO₂ precalentado en recuperador → Reduce necesidad de combustible\n"
-            "- Esto **AUMENTA** η_Global (mejor aprovechamiento térmico de gases de escape)\n\n"
-            "**Efecto 4 - Temperatura de Combustión (restricción operacional):**\n"
-            "- **↓ x_H₂O** (↑ recirculación) → ↓ T_combustión (dilución térmica por CO₂)\n"
-            "- **↑ x_H₂O** (↓ recirculación) → ↑ T_combustión (menos dilución, más concentración de calor)\n"
-            "- **RESTRICCIÓN FÍSICA:** T_combustión debe ser < 1800-2000°C para evitar daño a materiales (turbina, cámara)\n"
-            "- Por lo tanto, **aunque η_Global sea mayor a la derecha del gráfico (alta x_H₂O), "
-            "esas condiciones son INOPERABLES** debido a T_combustión excesiva\n\n"
-            "**Conclusión:** El **óptimo real** no es el máximo de η_Global, sino el **máximo dentro de la zona operable** "
-            "(donde T_combustión < 1800°C). Revisar la columna 'T_combustión (°C)' en la tabla de datos numéricos "
-            "para identificar el rango operacional. Típicamente, esto ocurre en la zona de **baja x_H₂O** (< 30-40%), "
-            "correspondiente a **alta recirculación** (> 85-90%)."
-        )
-
         # Información adicional
         with st.expander("📊 Ver datos numéricos completos"):
             df_resumen = pd.DataFrame({
