@@ -153,7 +153,7 @@ Ambos niveles son **complementarios**, no redundantes.
 ### Balance Energético
 
 ```
-W_neto = W_turbina - W_comp1 - W_comp_recir - W_comp_captura - W_ASU
+W_neto = W_turbina - W_comp1 - W_comp_recir - W_ASU
 
 η_térmica = W_neto / Q_comb
 
@@ -322,9 +322,10 @@ Optimización multiparamétrica automática usando algoritmos evolutivos:
 - **Tipo de combustible**: Selección fija para la optimización
 - **Número de iteraciones**: 10-500 generaciones (default: 100)
 - **Variables optimizadas simultáneamente**:
-  - Presión de combustión (50-250 bar)
-  - Fracción de recirculación (60-95%)
-  - Efectividad recuperador (50-95%)
+  - Presión de combustión / recirculación
+  - Presión salida turbina
+  - Fracción de recirculación CO₂
+  - Flujo de combustible
 
 **Algoritmo**: Differential Evolution (scipy.optimize)
 
@@ -654,21 +655,18 @@ def calcular_T_separador_automatica(P_separador_Pa, delta_T=10.0) → float
    │  ├─ Corriente 6: Entrada separador
    │  │  └─ Enfriamiento a T_separador (T_sat - 10K)
    │  │
-   │  ├─ Corriente 7: H₂O líquida condensada
-   │  │  └─ Separación por condensación completa
-   │  │
-   │  ├─ Corriente 8: CO₂ seco post-separador
-   │  │  └─ Gases sin H₂O
+   │  ├─ Corriente 7: CO₂ puro (seco)
+   │  │  └─ Salida del separador tras remover agua
    │  │
    │  ├─ División de flujo (fracción_recirculacion):
-   │  │  ├─ Corriente 12: CO₂ a captura (1 - f_recir)
-   │  │  └─ Corriente 9: CO₂ a recirculación (f_recir)
-   │  │
-   │  ├─ Corriente 10: CO₂ capturado comprimido
-   │  │  └─ Compresión a P_storage con η_comp_CO2
+   │  │  ├─ Corriente 12: CO₂ a captura (a almacenamiento)
+   │  │  └─ Corriente 8: CO₂ a recirculación (entrada compresor)
    │  │
    │  ├─ Corriente 9: CO₂ recirculado comprimido
    │  │  └─ Compresión a P_combustión con η_comp_CO2
+   │  │
+   │  ├─ Corriente 10: CO₂ enfriado
+   │  │  └─ Enfriamiento post-compresión
    │  │
    │  ├─ Corriente 11: CO₂ precalentado (retorna a combustor)
    │  │  └─ Calentamiento en recuperador (lado frío)
@@ -681,8 +679,7 @@ def calcular_T_separador_automatica(P_separador_Pa, delta_T=10.0) → float
    ├─ Calcular trabajos:
    │  ├─ W_turbina = n_3 × (h_3 - h_4) / 1e6 [MW]
    │  ├─ W_comp_fuel = n_1 × (h_1 - h_0) / 1e6 [MW]
-   │  ├─ W_comp_CO2_recirc = n_9 × (h_9 - h_8) / 1e6 [MW]
-   │  ├─ W_comp_captura = n_12 × (h_10 - h_12) / 1e6 [MW]
+   │  ├─ W_comp_CO2_recirc = n_8 × (h_9 - h_8) / 1e6 [MW]
    │  └─ W_ASU = n_O2 × 7000 / 1e6 [MW]
    │
    ├─ Calcular eficiencias:
@@ -778,13 +775,8 @@ El simulador incluye un **módulo de optimización multiparamétrica** (Sección
 
 **Parámetros fijos durante optimización**:
 - Tipo de combustible (seleccionado por usuario)
-- Flujo de combustible (base de cálculo)
-- Eficiencias de equipos (turbina, compresores)
-- Temperatura ambiente
-- Presión salida turbina
 
 **Resultados exportables**:
-- CSV con parámetros óptimos encontrados
 - CSV con propiedades termodinámicas de todas las corrientes en punto óptimo
 - Visualización de eficiencias alcanzadas
 - Balance energético completo del punto óptimo

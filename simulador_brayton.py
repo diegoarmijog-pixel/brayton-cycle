@@ -1729,12 +1729,12 @@ if tab1.is_active:
         # Cargar imagen PNG
         if os.path.exists(diagrama_path_png):
             imagen = Image.open(diagrama_path_png)
-            st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
+            st.image(imagen, caption="Diagrama del proceso", use_column_width=True)
         else:
             # Intentar con ruta relativa
             try:
                 imagen = Image.open("diagrama_brayton.png")
-                st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
+                st.image(imagen, caption="Diagrama del proceso", use_column_width=True)
             except:
                 st.warning("⚠️ No se pudo cargar el diagrama.")
     except FileNotFoundError:
