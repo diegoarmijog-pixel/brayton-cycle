@@ -1417,7 +1417,7 @@ class SimuladorBrayton:
 # ============================================================================
 
 # Botón de simulación (ubicado justo debajo del título)
-simular_btn = st.button("🔥 SIMULAR", type="primary", use_container_width=False)
+simular_btn = st.button("🔥 SIMULAR", type="primary")
 
 # ============================================================================
 # SIDEBAR - Parámetros de entrada
@@ -1940,7 +1940,7 @@ if tab2.is_active:
                 })
 
         df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
         # Opción de descarga
         csv = df.to_csv(index=False)
@@ -2509,17 +2509,12 @@ if tab5.is_active:
                 'η_Global (%)': [f"{x:.2f}" if x is not None else "N/A" for x in resultados['eta_CCS']],
                 'W_turbina (MW)': [f"{x:.3f}" if x is not None else "N/A" for x in resultados['W_turb']]
             })
-            st.dataframe(df_resumen, use_container_width=True)
+            st.dataframe(df_resumen, width="stretch")
 
         # ====================================================================
         # TABLAS POR CORRIENTE
         # ====================================================================
-        st.subheader("📋 Análisis Detallado por Corriente")
-
-        st.markdown("""
-        Selecciona una corriente para ver cómo varían sus propiedades termodinámicas
-        con la fracción de recirculación.
-        """)
+        st.subheader("📋 Análisis por Corriente")
 
         # Selector de corriente
         corrientes_disponibles = []
@@ -2587,7 +2582,7 @@ if tab5.is_active:
             df_corriente = pd.DataFrame(datos_corriente)
 
             st.markdown(f"### Corriente {corriente_seleccionada}")
-            st.dataframe(df_corriente, use_container_width=True)
+            st.dataframe(df_corriente, width="stretch")
 
             # Botón para descargar datos
             csv = df_corriente.to_csv(index=False).encode('utf-8')
@@ -2614,7 +2609,7 @@ if tab6.is_active:
     **Restricción Termodinámica:**
     - ✅ **P_combustion = P_recirculacion ≥ 7.377 MPa** (Pc del CO₂)
     - El CO₂ se mantiene supercrítico en C8-C11 (compresión, enfriamiento y recirculación)
-    - Después de la turbina (C4-C7), el CO₂ opera en condiciones subcríticas, lo cual es normal en ciclos Brayton
+    - Después de la turbina (C4-C7), el CO₂ opera en condiciones subcríticas
     """)
 
     # Controles de optimización
@@ -2969,7 +2964,7 @@ if tab6.is_active:
         }
 
         df_params = pd.DataFrame(params_data)
-        st.dataframe(df_params, use_container_width=True)
+        st.dataframe(df_params, width="stretch")
 
         # Botón de descarga para tabla de parámetros
         csv_params = df_params.to_csv(index=False).encode('utf-8')
@@ -3001,7 +2996,7 @@ if tab6.is_active:
             })
 
         df_corrientes = pd.DataFrame(corrientes_data)
-        st.dataframe(df_corrientes, use_container_width=True)
+        st.dataframe(df_corrientes, width="stretch")
 
         # Botón de descarga para tabla de corrientes
         csv_corrientes = df_corrientes.to_csv(index=False).encode('utf-8')
