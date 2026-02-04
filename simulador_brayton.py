@@ -8,6 +8,8 @@ from PIL import Image
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.optimize import differential_evolution
+import io
+import os
 
 
 # Configuración de la página
@@ -1585,6 +1587,195 @@ T_separador_K = calcular_T_separador_automatica(P_salida_turbina * 1e6)  # En K
 T_separador = T_separador_K - 273.15  # En °C
 
 # ============================================================================
+# EXPORTACIÓN DE RESULTADOS (EXCEL)
+# ============================================================================
+st.sidebar.markdown("---")
+st.sidebar.subheader("📥 Exportar Resultados")
+
+# Buscar plantilla en el directorio del script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+template_path = os.path.join(script_dir, "plantilla_reporte.xlsx")
+use_template = os.path.exists(template_path)
+
+if use_template:
+    st.sidebar.success(f"✅ Plantilla detectada: plantilla_reporte.xlsx")
+
+# Verificar disponibilidad de datos
+has_base = 'simulador' in st.session_state and st.session_state['simulador'] is not None
+has_sens = 'resultados_sensibilidad' in st.session_state
+has_opt = 'sim_optimo' in st.session_state and st.session_state['sim_optimo'] is not None
+
+if has_base or has_sens or has_opt:
+    try:
+        buffer = io.BytesIO()
+        if use_template:
+            with open(template_path, "rb") as f:
+                buffer = io.BytesIO(f.read())
+            writer = pd.ExcelWriter(buffer, engine='openpyxl', mode='a', if_sheet_exists='replace')
+        else:
+            buffer = io.BytesIO()
+            writer = pd.ExcelWriter(buffer, engine='xlsxwriter')
+
+        with writer:
+            # 1. Simulación Base
+            if has_base:
+                sim = st.session_state['simulador']
+                # Tabla Corrientes
+                data_corr = []
+                for i in sorted(sim.corrientes.keys()):
+                    c = sim.corrientes[i]
+                    row = {
+                        "Corriente": i,
+                        "Nombre": c.nombre,
+                        "T (°C)": round(c.T - 273.15, 2) if c.T else None,
+                        "P (MPa)": round(c.P / 1e6, 4) if c.P else None,
+                        "h (kJ/mol)": round(c.h / 1000, 3) if c.h else None,
+                        "s (J/mol K)": round(c.s, 3) if c.s else None,
+                        "Flujo (mol/s)": round(c.flujo_molar, 3) if c.flujo_molar else None,
+                        "Densidad (kg/m3)": round(c.rho, 3) if c.rho else None,
+                    }
+                    # Desglosar composición en columnas separadas
+                    if c.composicion:
+                        for comp, frac in c.composicion.items():
+                            row[f"x_{comp}"] = frac
+                    data_corr.append(row)
+                
+                df_corr = pd.DataFrame(data_corr)
+                # Rellenar NaNs en columnas de composición con 0
+                comp_cols = [col for col in df_corr.columns if col.startswith('x_')]
+                if comp_cols:
+                    df_corr[comp_cols] = df_corr[comp_cols].fillna(0)
+                df_corr.to_excel(writer, sheet_name='Base - Corrientes', index=False)
+                
+                # Tabla Resultados
+                data_res = [
+                    {"Parámetro": "Trabajo Neto (MW)", "Valor": sim.W_neto},
+                    {"Parámetro": "Trabajo Turbina (MW)", "Valor": getattr(sim, 'W_turbina', 0)},
+                    {"Parámetro": "Trabajo Comp. Fuel (MW)", "Valor": getattr(sim, 'W_compresor_fuel', 0)},
+                    {"Parámetro": "Trabajo Comp. CO2 Recirc (MW)", "Valor": getattr(sim, 'W_CO2comp_recirculacion', 0)},
+                    {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim, 'W_ASU', 0)},
+                    {"Parámetro": "Calor Combustión (MW)", "Valor": sim.Q_combustion},
+                    {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim.eta_cycle},
+                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim.eta_O2},
+                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim.eta_CCS},
+                    {"Parámetro": "T Combustión (°C)", "Valor": sim.T_combustion_calculada - 273.15 if hasattr(sim, 'T_combustion_calculada') else None}
+                ]
+                pd.DataFrame(data_res).to_excel(writer, sheet_name='Base - Resultados', index=False)
+
+            # 2. Análisis de Sensibilidad
+            if has_sens:
+                res = st.session_state['resultados_sensibilidad']
+                # Datos base del análisis
+                data_sens = {
+                    'f_recirculacion (%)': res['f_recirculacion'],
+                    'W_neto (MW)': res.get('W_neto', [None]*len(res['f_recirculacion'])),
+                    'eta_CCS (%)': res['eta_CCS'],
+                    'eta_cycle (%)': res.get('eta_cycle', [None]*len(res['f_recirculacion'])),
+                    'eta_O2 (%)': res.get('eta_O2', [None]*len(res['f_recirculacion'])),
+                    'W_turb (MW)': res['W_turb'],
+                    'x_H2O_C4 (%)': res['x_H2O_C4'],
+                    'T_combustion (°C)': res['T_combustion']
+                }
+                
+                # Agregar datos detallados de cada corriente para cada paso
+                if 'corrientes' in res and res['corrientes']:
+                    # Obtener IDs de corrientes del primer paso para crear columnas
+                    first_step = res['corrientes'][0]
+                    if first_step:
+                        stream_ids = sorted(first_step.keys())
+                        
+                        # Inicializar listas para cada propiedad de cada corriente
+                        for sid in stream_ids:
+                            data_sens[f'C{sid}_T (°C)'] = []
+                            data_sens[f'C{sid}_P (bar)'] = []
+                            data_sens[f'C{sid}_h (kJ/mol)'] = []
+                            data_sens[f'C{sid}_Flujo (mol/s)'] = []
+                        
+                        # Llenar datos iterando sobre los resultados
+                        for step_data in res['corrientes']:
+                            for sid in stream_ids:
+                                s = step_data.get(sid, {})
+                                data_sens[f'C{sid}_T (°C)'].append(s.get('T'))
+                                data_sens[f'C{sid}_P (bar)'].append(s.get('P'))
+                                data_sens[f'C{sid}_h (kJ/mol)'].append(s.get('h'))
+                                data_sens[f'C{sid}_Flujo (mol/s)'].append(s.get('flujo'))
+
+                df_sens = pd.DataFrame(data_sens)
+                df_sens.to_excel(writer, sheet_name='Sensibilidad', index=False)
+
+            # 3. Optimización
+            if has_opt:
+                sim_opt = st.session_state['sim_optimo']
+                sheet_opt = 'Resultados Optimización'
+                row_idx = 0
+
+                # Parámetros óptimos
+                if 'params_optimos' in st.session_state:
+                    x_opt = st.session_state['params_optimos']
+                    df_params = pd.DataFrame({
+                        "Parámetro": ["P_combustion (Pa)", "P_salida_turbina (Pa)", "f_recirculacion", "flujo_combustible (mol/s)"],
+                        "Valor Óptimo": x_opt
+                    })
+                    df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                    row_idx += len(df_params) + 2
+                
+                # Resultados Óptimos Completos (Escalares)
+                data_res_opt = [
+                    {"Parámetro": "Trabajo Neto (MW)", "Valor": sim_opt.W_neto},
+                    {"Parámetro": "Trabajo Turbina (MW)", "Valor": getattr(sim_opt, 'W_turbina', 0)},
+                    {"Parámetro": "Trabajo Comp. Fuel (MW)", "Valor": getattr(sim_opt, 'W_compresor_fuel', 0)},
+                    {"Parámetro": "Trabajo Comp. CO2 Recirc (MW)", "Valor": getattr(sim_opt, 'W_CO2comp_recirculacion', 0)},
+                    {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim_opt, 'W_ASU', 0)},
+                    {"Parámetro": "Calor Combustión (MW)", "Valor": sim_opt.Q_combustion},
+                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim_opt.eta_CCS},
+                    {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim_opt.eta_cycle},
+                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim_opt.eta_O2},
+                    {"Parámetro": "T Combustión (°C)", "Valor": sim_opt.T_combustion_calculada - 273.15 if hasattr(sim_opt, 'T_combustion_calculada') else None}
+                ]
+                df_res_opt = pd.DataFrame(data_res_opt)
+                df_res_opt.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                row_idx += len(df_res_opt) + 2
+
+                # Corrientes Óptimas
+                data_corr_opt = []
+                for i in sorted(sim_opt.corrientes.keys()):
+                    c = sim_opt.corrientes[i]
+                    row = {
+                        "Corriente": i,
+                        "Nombre": c.nombre,
+                        "T (°C)": round(c.T - 273.15, 2) if c.T else None,
+                        "P (MPa)": round(c.P / 1e6, 4) if c.P else None,
+                        "h (kJ/mol)": round(c.h / 1000, 3) if c.h else None,
+                        "s (J/mol K)": round(c.s, 3) if c.s else None,
+                        "Flujo (mol/s)": round(c.flujo_molar, 3) if c.flujo_molar else None,
+                        "Densidad (kg/m3)": round(c.rho, 3) if c.rho else None,
+                    }
+                    # Desglosar composición
+                    if c.composicion:
+                        for comp, frac in c.composicion.items():
+                            row[f"x_{comp}"] = frac
+                    data_corr_opt.append(row)
+                
+                df_corr_opt = pd.DataFrame(data_corr_opt)
+                # Rellenar NaNs
+                comp_cols_opt = [col for col in df_corr_opt.columns if col.startswith('x_')]
+                if comp_cols_opt:
+                    df_corr_opt[comp_cols_opt] = df_corr_opt[comp_cols_opt].fillna(0)
+                df_corr_opt.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+
+        st.sidebar.download_button(
+            label="📥 Descargar Reporte Excel Completo",
+            data=buffer.getvalue(),
+            file_name="reporte_simulacion_brayton.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.sidebar.error(f"Error generando Excel: {e}")
+        st.sidebar.info("Nota: Se requiere 'xlsxwriter' o 'openpyxl' instalado.")
+else:
+    st.sidebar.info("Realice simulaciones para habilitar la descarga.")
+
+# ============================================================================
 # Recopilar parámetros
 # ============================================================================
 parametros = {
@@ -2312,7 +2503,10 @@ if tab5.is_active:
             # Arrays para almacenar resultados
             resultados = {
                 'f_recirculacion': [],
+                'W_neto': [],
                 'eta_CCS': [],
+                'eta_cycle': [],
+                'eta_O2': [],
                 'W_turb': [],
                 'x_H2O_C4': [],
                 'T_combustion': [],  # Temperatura de combustión calculada
@@ -2357,7 +2551,10 @@ if tab5.is_active:
                     if exito:
                         # Almacenar resultados
                         resultados['f_recirculacion'].append(f_recirc * 100)
+                        resultados['W_neto'].append(sim.W_neto)
                         resultados['eta_CCS'].append(sim.eta_CCS)
+                        resultados['eta_cycle'].append(sim.eta_cycle)
+                        resultados['eta_O2'].append(sim.eta_O2)
                         resultados['W_turb'].append(sim.W_turbina)  # Trabajo de turbina (no W_neto)
 
                         # Obtener temperatura de combustión
@@ -2387,7 +2584,10 @@ if tab5.is_active:
                     else:
                         # Simulación falló, usar None
                         resultados['f_recirculacion'].append(f_recirc * 100)
+                        resultados['W_neto'].append(None)
                         resultados['eta_CCS'].append(None)
+                        resultados['eta_cycle'].append(None)
+                        resultados['eta_O2'].append(None)
                         resultados['W_turb'].append(None)
                         resultados['x_H2O_C4'].append(None)
                         resultados['T_combustion'].append(None)
@@ -2396,7 +2596,10 @@ if tab5.is_active:
                 except Exception as e:
                     st.warning(f"⚠️ Error en simulación con f={f_recirc*100:.1f}%: {str(e)}")
                     resultados['f_recirculacion'].append(f_recirc * 100)
+                    resultados['W_neto'].append(None)
                     resultados['eta_CCS'].append(None)
+                    resultados['eta_cycle'].append(None)
+                    resultados['eta_O2'].append(None)
                     resultados['W_turb'].append(None)
                     resultados['x_H2O_C4'].append(None)
                     resultados['T_combustion'].append(None)

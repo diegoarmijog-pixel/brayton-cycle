@@ -20,3 +20,7 @@ Pillow>=10.0.0
 
 # Optimización numérica (differential_evolution para optimizador)
 scipy>=1.11.0
+
+# Exportación a Excel (Motores para pandas)
+openpyxl>=3.1.0
+XlsxWriter>=3.1.0
