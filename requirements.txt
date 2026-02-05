@@ -9,7 +9,6 @@ pandas>=2.0.0
 numpy>=1.24.0
 
 # Visualización
-matplotlib>=3.7.0
 plotly>=5.17.0
 
 # Propiedades termodinámicas (HEOS, ecuaciones de estado)

@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from CoolProp.CoolProp import PropsSI, AbstractState
 from CoolProp import CoolProp as CP
 from PIL import Image
@@ -1597,9 +1596,6 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 template_path = os.path.join(script_dir, "plantilla_reporte.xlsx")
 use_template = os.path.exists(template_path)
 
-if use_template:
-    st.sidebar.success(f"✅ Plantilla detectada: plantilla_reporte.xlsx")
-
 # Verificar disponibilidad de datos
 has_base = 'simulador' in st.session_state and st.session_state['simulador'] is not None
 has_sens = 'resultados_sensibilidad' in st.session_state
@@ -1848,14 +1844,14 @@ simulacion_exitosa = st.session_state['simulacion_exitosa']
 
 # Definir estructura del menú
 main_menu_names = [
-    "📊 Datos Simulación",
+    "📊 Diagrama del Proceso",
+    "📋 Datos Simulación",
     "🔬 Análisis de Sensibilidad",
     "🎯 Optimización"
 ]
 
 # Submenús para "Datos Simulación"
 sub_menu_datos = [
-    "📊 Diagrama del Proceso",
     "📋 Tabla de Propiedades",
     "📈 Diagrama P-H",
     "📉 Diagrama T-S"
@@ -1883,7 +1879,11 @@ st.session_state['main_menu_index'] = selected_main_index
 selected_main = main_menu_names[selected_main_index]
 
 # Submenú para "Datos Simulación"
-if selected_main_index == 0:  # "📊 Datos Simulación"
+if selected_main_index == 1:  # "📋 Datos Simulación"
+    # Validar índice para evitar errores si cambia la estructura
+    if st.session_state['sub_menu_index'] >= len(sub_menu_datos):
+        st.session_state['sub_menu_index'] = 0
+
     selected_sub_index = st.radio(
         "Vista de datos:",
         options=range(len(sub_menu_datos)),
@@ -1896,7 +1896,7 @@ if selected_main_index == 0:  # "📊 Datos Simulación"
     st.session_state['sub_menu_index'] = selected_sub_index
     selected_sub = sub_menu_datos[selected_sub_index]
 else:
-    selected_sub = sub_menu_datos[0]
+    selected_sub = None
 
 st.markdown("---")  # Separador visual
 
@@ -1910,12 +1910,12 @@ class TabContext:
         pass
 
 # Asignar pestañas según el menú activo
-tab1 = TabContext(selected_main_index == 0 and selected_sub == "📊 Diagrama del Proceso")
-tab2 = TabContext(selected_main_index == 0 and selected_sub == "📋 Tabla de Propiedades")
-tab3 = TabContext(selected_main_index == 0 and selected_sub == "📈 Diagrama P-H")
-tab4 = TabContext(selected_main_index == 0 and selected_sub == "📉 Diagrama T-S")
-tab5 = TabContext(selected_main_index == 1)  # Análisis de Sensibilidad
-tab6 = TabContext(selected_main_index == 2)  # Optimización
+tab1 = TabContext(selected_main_index == 0)  # Diagrama del Proceso
+tab2 = TabContext(selected_main_index == 1 and selected_sub == "📋 Tabla de Propiedades")
+tab3 = TabContext(selected_main_index == 1 and selected_sub == "📈 Diagrama P-H")
+tab4 = TabContext(selected_main_index == 1 and selected_sub == "📉 Diagrama T-S")
+tab5 = TabContext(selected_main_index == 2)  # Análisis de Sensibilidad
+tab6 = TabContext(selected_main_index == 3)  # Optimización
 
 # ============================================================================
 # TAB 1: Diagrama del Proceso
@@ -1925,7 +1925,6 @@ if tab1.is_active:
 
     # Intentar cargar el diagrama
     import os
-    import streamlit.components.v1 as components
 
     try:
         # Obtener la ruta absoluta del directorio del script
@@ -1938,22 +1937,27 @@ if tab1.is_active:
             diagrama_path_png = diagrama_path_png_corr
 
         # Cargar imagen PNG
-        with st.expander("Ver Diagrama del Proceso", expanded=True):
-            if os.path.exists(diagrama_path_png):
-                imagen = Image.open(diagrama_path_png)
+        if os.path.exists(diagrama_path_png):
+            imagen = Image.open(diagrama_path_png)
+            st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
+        else:
+            # Intentar con ruta relativa
+            try:
+                imagen = Image.open("diagrama_brayton.png")
                 st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
-            else:
-                # Intentar con ruta relativa
-                try:
-                    imagen = Image.open("diagrama_brayton.png")
-                    st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
-                except:
-                    st.warning("⚠️ No se pudo cargar el diagrama.")
+            except:
+                st.warning("⚠️ No se pudo cargar el diagrama.")
     except FileNotFoundError:
         st.warning("⚠️ No se pudo cargar el diagrama. Asegúrate de que 'diagramas brayton.svg' o 'diagrama_brayton.png' estén en el mismo directorio que el script.")
         st.info(f"Directorio actual: {os.getcwd()}")
     except Exception as e:
         st.error(f"Error al cargar el diagrama: {str(e)}")
+
+# ============================================================================
+# TAB 2: Tabla de Propiedades
+# ============================================================================
+if tab2.is_active:
+    st.header("Resultados de Simulación y Propiedades")
 
     if simulacion_exitosa and simulador:
         st.subheader("Resultados Energéticos")
@@ -2127,13 +2131,9 @@ if tab1.is_active:
             if 12 in simulador.corrientes:
                 st.write(f"**C12 (CO₂ capturado, a almacenamiento):** T = {simulador.corrientes[12].T-273.15:.1f}°C, P = {simulador.corrientes[12].P/1e6:.3f} MPa, Flujo = {simulador.corrientes[12].flujo_molar:.2f} mol/s")
 
-# ============================================================================
-# TAB 2: Tabla de Propiedades
-# ============================================================================
-if tab2.is_active:
-    st.header("Propiedades Termodinámicas de las Corrientes")
+        st.markdown("---")
+        st.subheader("Tabla de Propiedades")
 
-    if simulacion_exitosa and simulador:
         # Crear tabla de propiedades
         data = []
         for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
