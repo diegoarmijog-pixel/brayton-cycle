@@ -1611,15 +1611,39 @@ if has_base or has_sens or has_opt:
         if use_template:
             with open(template_path, "rb") as f:
                 buffer = io.BytesIO(f.read())
-            writer = pd.ExcelWriter(buffer, engine='openpyxl', mode='a', if_sheet_exists='replace')
+            # Usar overlay para escribir sobre las hojas existentes sin borrarlas
+            writer = pd.ExcelWriter(buffer, engine='openpyxl', mode='a', if_sheet_exists='overlay')
         else:
             buffer = io.BytesIO()
             writer = pd.ExcelWriter(buffer, engine='xlsxwriter')
 
         with writer:
+            # Nombres de hojas estándar (deben coincidir con la plantilla si existe)
+            sheet_base = 'Simulacion'
+            sheet_sens = 'Sensibilidad'
+            sheet_opt = 'Optimizacion'
+            sheets_written = []
+
             # 1. Simulación Base
             if has_base:
                 sim = st.session_state['simulador']
+                
+                # Tabla Resultados (Escalares)
+                data_res = [
+                    {"Parámetro": "Trabajo Neto (MW)", "Valor": sim.W_neto},
+                    {"Parámetro": "Trabajo Turbina (MW)", "Valor": getattr(sim, 'W_turbina', 0)},
+                    {"Parámetro": "Trabajo Comp. Fuel (MW)", "Valor": getattr(sim, 'W_compresor_fuel', 0)},
+                    {"Parámetro": "Trabajo Comp. CO2 Recirc (MW)", "Valor": getattr(sim, 'W_CO2comp_recirculacion', 0)},
+                    {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim, 'W_ASU', 0)},
+                    {"Parámetro": "Calor Combustión (MW)", "Valor": sim.Q_combustion},
+                    {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim.eta_cycle},
+                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim.eta_O2},
+                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim.eta_CCS},
+                    {"Parámetro": "T Combustión (°C)", "Valor": sim.T_combustion_calculada - 273.15 if hasattr(sim, 'T_combustion_calculada') else None}
+                ]
+                df_res = pd.DataFrame(data_res)
+                df_res.to_excel(writer, sheet_name=sheet_base, startrow=0, index=False)
+
                 # Tabla Corrientes
                 data_corr = []
                 for i in sorted(sim.corrientes.keys()):
@@ -1645,22 +1669,10 @@ if has_base or has_sens or has_opt:
                 comp_cols = [col for col in df_corr.columns if col.startswith('x_')]
                 if comp_cols:
                     df_corr[comp_cols] = df_corr[comp_cols].fillna(0)
-                df_corr.to_excel(writer, sheet_name='Base - Corrientes', index=False)
                 
-                # Tabla Resultados
-                data_res = [
-                    {"Parámetro": "Trabajo Neto (MW)", "Valor": sim.W_neto},
-                    {"Parámetro": "Trabajo Turbina (MW)", "Valor": getattr(sim, 'W_turbina', 0)},
-                    {"Parámetro": "Trabajo Comp. Fuel (MW)", "Valor": getattr(sim, 'W_compresor_fuel', 0)},
-                    {"Parámetro": "Trabajo Comp. CO2 Recirc (MW)", "Valor": getattr(sim, 'W_CO2comp_recirculacion', 0)},
-                    {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim, 'W_ASU', 0)},
-                    {"Parámetro": "Calor Combustión (MW)", "Valor": sim.Q_combustion},
-                    {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim.eta_cycle},
-                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim.eta_O2},
-                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim.eta_CCS},
-                    {"Parámetro": "T Combustión (°C)", "Valor": sim.T_combustion_calculada - 273.15 if hasattr(sim, 'T_combustion_calculada') else None}
-                ]
-                pd.DataFrame(data_res).to_excel(writer, sheet_name='Base - Resultados', index=False)
+                # Escribir corrientes debajo de resultados (dejando 2 filas de espacio)
+                df_corr.to_excel(writer, sheet_name=sheet_base, startrow=len(df_res)+3, index=False)
+                sheets_written.append(sheet_base)
 
             # 2. Análisis de Sensibilidad
             if has_sens:
@@ -1701,25 +1713,15 @@ if has_base or has_sens or has_opt:
                                 data_sens[f'C{sid}_Flujo (mol/s)'].append(s.get('flujo'))
 
                 df_sens = pd.DataFrame(data_sens)
-                df_sens.to_excel(writer, sheet_name='Sensibilidad', index=False)
+                df_sens.to_excel(writer, sheet_name=sheet_sens, index=False)
+                sheets_written.append(sheet_sens)
 
             # 3. Optimización
             if has_opt:
                 sim_opt = st.session_state['sim_optimo']
-                sheet_opt = 'Resultados Optimización'
                 row_idx = 0
 
-                # Parámetros óptimos
-                if 'params_optimos' in st.session_state:
-                    x_opt = st.session_state['params_optimos']
-                    df_params = pd.DataFrame({
-                        "Parámetro": ["P_combustion (Pa)", "P_salida_turbina (Pa)", "f_recirculacion", "flujo_combustible (mol/s)"],
-                        "Valor Óptimo": x_opt
-                    })
-                    df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
-                    row_idx += len(df_params) + 2
-                
-                # Resultados Óptimos Completos (Escalares)
+                # Resultados Óptimos Completos (Escalares) - Orden idéntico a Simulación Base
                 data_res_opt = [
                     {"Parámetro": "Trabajo Neto (MW)", "Valor": sim_opt.W_neto},
                     {"Parámetro": "Trabajo Turbina (MW)", "Valor": getattr(sim_opt, 'W_turbina', 0)},
@@ -1727,9 +1729,9 @@ if has_base or has_sens or has_opt:
                     {"Parámetro": "Trabajo Comp. CO2 Recirc (MW)", "Valor": getattr(sim_opt, 'W_CO2comp_recirculacion', 0)},
                     {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim_opt, 'W_ASU', 0)},
                     {"Parámetro": "Calor Combustión (MW)", "Valor": sim_opt.Q_combustion},
-                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim_opt.eta_CCS},
                     {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim_opt.eta_cycle},
                     {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim_opt.eta_O2},
+                    {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim_opt.eta_CCS},
                     {"Parámetro": "T Combustión (°C)", "Valor": sim_opt.T_combustion_calculada - 273.15 if hasattr(sim_opt, 'T_combustion_calculada') else None}
                 ]
                 df_res_opt = pd.DataFrame(data_res_opt)
@@ -1762,6 +1764,24 @@ if has_base or has_sens or has_opt:
                 if comp_cols_opt:
                     df_corr_opt[comp_cols_opt] = df_corr_opt[comp_cols_opt].fillna(0)
                 df_corr_opt.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                row_idx += len(df_corr_opt) + 3
+
+                # Parámetros óptimos (Al final para mantener el orden superior igual a la base)
+                if 'params_optimos' in st.session_state:
+                    x_opt = st.session_state['params_optimos']
+                    df_params = pd.DataFrame({
+                        "Parámetro Optimizado": ["P_combustion (Pa)", "P_salida_turbina (Pa)", "f_recirculacion", "flujo_combustible (mol/s)"],
+                        "Valor Óptimo": x_opt
+                    })
+                    df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                
+                sheets_written.append(sheet_opt)
+
+            # Limpiar hojas de la plantilla que no se usaron
+            if use_template:
+                for sheet_name in writer.book.sheetnames:
+                    if sheet_name not in sheets_written:
+                        del writer.book[sheet_name]
 
         st.sidebar.download_button(
             label="📥 Descargar Reporte Excel Completo",
