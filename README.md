@@ -28,7 +28,7 @@ Simulador termodinámico avanzado para análisis de ciclos Brayton con oxicombus
 - **Streamlit web app**: Interfaz moderna y responsiva
 - **Diagramas P-H y T-S**: Visualización completa del ciclo
 - **Tablas de propiedades**: 13 corrientes con datos completos
-- **Exportación CSV**: Resultados descargables para análisis
+- **Reportes Excel y CSV**: Exportación completa de resultados, sensibilidad y optimización
 
 ---
 
@@ -128,25 +128,25 @@ Ambos niveles son **complementarios**, no redundantes.
     C6: Gases a T_separador
      ↓
     [Separador de Agua]
-     ├→ C7: H₂O líquida (captura)
-     └→ C8: CO₂ seco
+     ├→ H₂O líquida (removido)
+     └→ C7: CO₂ puro (seco)
          ↓
         [División]
-         ├→ C9: CO₂ a captura (1-f_recir)
-         │   ↓
-         │  [Compresor CO₂ Captura]  ← W_comp_captura
-         │   ↓
-         │  C11: CO₂ almacenamiento (P_storage)
+         ├→ C12: CO₂ a captura (a almacenamiento)
          │
-         └→ C12: CO₂ a recirculación (f_recir)
+         └→ C8: CO₂ a recirculación (entrada compresor)
              ↓
             [Compresor CO₂ Recirc]  ← W_comp_recir
              ↓
-            C8: CO₂ comprimido
+            C9: CO₂ comprimido
+             ↓
+            [Intercambiador 3]
+             ↓
+            C10: CO₂ enfriado
              ↓
             [Recuperador - Lado Frío]
              ↓
-            C10: CO₂ precalentado
+            C11: CO₂ precalentado
              └──→ [vuelve a combustión]
 ```
 
