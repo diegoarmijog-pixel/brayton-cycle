@@ -1779,10 +1779,15 @@ if has_base or has_sens or has_opt:
                     if sheet_name not in sheets_written:
                         del writer.book[sheet_name]
 
+        # Permitir al usuario elegir el nombre
+        nombre_archivo = st.sidebar.text_input("Nombre del archivo:", value="Reporte_Simulacion_Brayton")
+        if not nombre_archivo.endswith(".xlsx"):
+            nombre_archivo += ".xlsx"
+
         st.sidebar.download_button(
             label="📥 Descargar Reporte Excel Completo",
             data=buffer.getvalue(),
-            file_name="reporte_simulacion_brayton.xlsx",
+            file_name=nombre_archivo,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     except Exception as e:
