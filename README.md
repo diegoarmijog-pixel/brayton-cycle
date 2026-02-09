@@ -893,6 +893,7 @@ El código ha sido validado contra:
 - ✅ **Exportación CSV** de resultados, parámetros y corrientes
 - ✅ **Validación de restricciones** (f_recirculación < 1.0, presiones coherentes)
 - ✅ **Documentación README** actualizada con estructura completa
+- ✅ **Personalización de UI**: Tema visual ajustado con color primario azul (#0068C9)
 
 ### Versión 3.0 (Noviembre 2024)
 - ✅ Implementación de kij experimental para CO₂-H₂O (0.1896)
