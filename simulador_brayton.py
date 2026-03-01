@@ -36,6 +36,10 @@ if modo_oscuro:
         [data-testid="stSidebar"] {
             background-color: #262730;
         }
+        /* Header superior */
+        header[data-testid="stHeader"] {
+            background-color: #0E1117 !important;
+        }
         /* Headers y Texto */
         h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, .stText {
             color: #FAFAFA !important;
