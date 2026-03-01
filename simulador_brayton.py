@@ -14,8 +14,52 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Simulador Ciclo Brayton Oxicombustión", layout="wide")
 
-# Título principal
-st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
+# Título principal y Toggle Modo Oscuro
+col_header_1, col_header_2 = st.columns([6, 1])
+with col_header_1:
+    st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
+with col_header_2:
+    st.write("") # Espacio para alinear verticalmente
+    st.write("")
+    modo_oscuro = st.toggle("Modo Oscuro", value=False, help="Cambia el diagrama a versión oscura (fondo negro).")
+
+# Aplicar estilos CSS para Modo Oscuro
+if modo_oscuro:
+    st.markdown("""
+        <style>
+        /* Fondo principal y texto */
+        .stApp {
+            background-color: #0E1117;
+            color: #FAFAFA;
+        }
+        /* Sidebar */
+        [data-testid="stSidebar"] {
+            background-color: #262730;
+        }
+        /* Headers y Texto */
+        h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, .stText {
+            color: #FAFAFA !important;
+        }
+        /* Métricas */
+        [data-testid="stMetricLabel"] {
+            color: #E0E0E0 !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: #FFFFFF !important;
+        }
+        /* Inputs (para asegurar legibilidad) */
+        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {
+            color: #FAFAFA !important;
+            background-color: #262730 !important;
+        }
+        /* Botones (Mantener Azul) */
+        .stButton > button {
+            background-color: #0068C9 !important;
+            color: #FFFFFF !important;
+            border: none !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
 # ============================================================================
 # CLASES Y FUNCIONES AUXILIARES
@@ -1934,17 +1978,35 @@ if tab1.is_active:
     try:
         # Obtener la ruta absoluta del directorio del script
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        diagrama_path_svg = os.path.join(script_dir, "diagramas brayton.svg")
-        diagrama_path_png = os.path.join(script_dir, "diagrama_brayton.png")
-        # Preferir el diagrama corregido si existe
-        diagrama_path_png_corr = os.path.join(script_dir, "diagrama_brayton_corregido.png")
-        if os.path.exists(diagrama_path_png_corr):
-            diagrama_path_png = diagrama_path_png_corr
-
-        # Cargar imagen PNG
-        if os.path.exists(diagrama_path_png):
-            imagen = Image.open(diagrama_path_png)
-            st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
+        
+        # Definir lista de nombres según el modo seleccionado
+        if modo_oscuro:
+            posibles_nombres = [
+                "diagrama_black.png",
+                "diagrama_brayton_black.png",
+                "diagramas brayton_black.png",
+                "diagrama_brayton_corregido_black.png"
+            ]
+        else:
+            posibles_nombres = [
+                "diagrama_white.png",
+                "diagrama_brayton_white.png",
+                "diagramas brayton_white.png",
+                "diagrama_brayton_corregido.png",
+                "diagramas brayton_corregido.png",
+                "diagrama_brayton.png"
+            ]
+        
+        imagen_path = None
+        for nombre in posibles_nombres:
+            ruta = os.path.join(script_dir, nombre)
+            if os.path.exists(ruta):
+                imagen_path = ruta
+                break
+        
+        if imagen_path:
+            imagen = Image.open(imagen_path)
+            st.image(imagen, caption=f"Diagrama del proceso ({os.path.basename(imagen_path)})", use_container_width=True)
         else:
             # Intentar con ruta relativa
             try:
