@@ -1695,13 +1695,6 @@ if has_base or has_sens or has_opt:
                 row_idx += len(df_corr_opt) + 3
 
                 # Parámetros óptimos (Al final para mantener el orden superior igual a la base)
-                if 'params_optimos' in st.session_state:
-                    x_opt = st.session_state['params_optimos']
-                    df_params = pd.DataFrame({
-                        "Parámetro Optimizado": ["P_combustion (Pa)", "P_salida_turbina (Pa)", "f_recirculacion", "flujo_combustible (mol/s)"],
-                        "Valor Óptimo": x_opt
-                    })
-                    df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
                 # Usar los parámetros almacenados en el objeto simulador para mayor precisión
                 params_to_show = [
                     {"Parámetro Optimizado": "Presión de Combustión (MPa)", "Valor Óptimo": sim_opt.params['P_combustion'] / 1e6},
