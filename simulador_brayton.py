@@ -283,22 +283,6 @@ class Corriente:
         }
         return conversion.get(nombre, nombre)
 
-    def _es_mezcla_soportada(self):
-        """Verifica si la mezcla es soportada por CoolProp"""
-        # CoolProp soporta mezclas predefinidas comunes
-        componentes = set(self.composicion.keys())
-
-        # CO2-H2O es una mezcla común en combustión
-        if componentes == {"CO2", "H2O"}:
-            return True
-
-        # Mezclas con gases comunes
-        gases_soportados = {"CO2", "H2O", "N2", "O2", "CH4", "H2", "CO"}
-        if componentes.issubset(gases_soportados):
-            return True
-
-        return False
-
     def _calcular_mezcla_componentes_puros(self):
         """
         Calcula propiedades usando HEOS para cada componente puro
@@ -816,46 +800,6 @@ class SimuladorBrayton:
             # - H(T) son entalpías sensibles desde 298K (lo que calcula CoolProp)
             # - Q_combustion es el LHV (incluye diferencia de entalpía de formación)
 
-            # Calcular DIFERENCIA de entalpía sensible entrada: ΔH = H(T_in) - H(298K)
-            # Esto elimina dependencia de referencias arbitrarias de CoolProp
-
-            delta_H_sensible_entrada = 0
-
-            # Combustible: ΔH = n × [h(T_in) - h(298K)]
-            h_fuel_Tin = self.corrientes[1].h if self.corrientes[1].h else 0
-            corriente_ref_fuel_298 = Corriente("ref_fuel_298K", T=298.15, P=self.params['P_combustion'],
-                                              composicion=combustible.composicion, flujo_molar=1.0)
-            corriente_ref_fuel_298.calcular_propiedades()
-            h_fuel_298 = corriente_ref_fuel_298.h if corriente_ref_fuel_298.h else 0
-            delta_H_sensible_entrada += n_combustible * (h_fuel_Tin - h_fuel_298)
-
-            # O2: ΔH = n × [h(T_in) - h(298K)]
-            h_O2_Tin = self.corrientes[2].h if self.corrientes[2].h else 0
-            corriente_ref_O2_298 = Corriente("ref_O2_298K", T=298.15, P=self.params['P_combustion'],
-                                            composicion={"O2": 1.0}, flujo_molar=1.0)
-            corriente_ref_O2_298.calcular_propiedades()
-            h_O2_298 = corriente_ref_O2_298.h if corriente_ref_O2_298.h else 0
-            delta_H_sensible_entrada += n_O2 * (h_O2_Tin - h_O2_298)
-
-            # CO2 recirculado: ΔH = n × [h(T_in) - h(298K)]
-            if 11 in self.corrientes and self.corrientes[11].h:
-                h_CO2_Tin = self.corrientes[11].h
-            else:
-                # Estimación primera iteración: CO2 a ~968°C
-                T_CO2_recirc_estimado = 1241  # K
-                corriente_CO2_est = Corriente("CO2_recirc_estimado",
-                                              T=T_CO2_recirc_estimado,
-                                              P=self.params['P_combustion'],
-                                              composicion={"CO2": 1.0}, flujo_molar=1.0)
-                corriente_CO2_est.calcular_propiedades()
-                h_CO2_Tin = corriente_CO2_est.h if corriente_CO2_est.h else 0
-
-            corriente_ref_CO2_298 = Corriente("ref_CO2_298K", T=298.15, P=self.params['P_combustion'],
-                                             composicion={"CO2": 1.0}, flujo_molar=1.0)
-            corriente_ref_CO2_298.calcular_propiedades()
-            h_CO2_298 = corriente_ref_CO2_298.h if corriente_ref_CO2_298.h else 0
-            delta_H_sensible_entrada += n_CO2_recirculado * (h_CO2_Tin - h_CO2_298)
-
             # ============================================================================
             # BALANCE ENERGÉTICO SIMPLE (MÉTODO ORIGINAL RESTAURADO)
             # ============================================================================
@@ -1066,12 +1010,6 @@ class SimuladorBrayton:
             # ====================================================================
             # CALCULAR C5-C9 PARA OBTENER n_CO2_recirculado_new
             # ====================================================================
-
-            # C5: Salida recuperador (lado caliente)
-            T5 = self.corrientes[4].T - epsilon_rec * (self.corrientes[4].T - (self.params['T_ambiente'] + 50))
-
-            # C6: Entrada separador
-            T6 = self.params['T_separador']
 
             # C7: CO2 puro (después de separar agua)
             n_CO2_puro = n_total_productos * comp_productos_total.get("CO2", 0.5)
@@ -1308,12 +1246,6 @@ class SimuladorBrayton:
         # Contribución del CO2 recirculado (C11) - esta es la clave del recuperador
         if self.corrientes[11].h:
             H_entrada_combustor += n_CO2_recirculado * self.corrientes[11].h
-
-        # Entalpía de salida del combustor (C3)
-        if self.corrientes[3].h:
-            H_salida_combustor = n_total_productos * self.corrientes[3].h
-        else:
-            H_salida_combustor = H_entrada_combustor
 
         # ====================================================================
         # CALOR DE ENTRADA PARA CÁLCULO DE EFICIENCIA
@@ -1770,6 +1702,15 @@ if has_base or has_sens or has_opt:
                         "Valor Óptimo": x_opt
                     })
                     df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                # Usar los parámetros almacenados en el objeto simulador para mayor precisión
+                params_to_show = [
+                    {"Parámetro Optimizado": "Presión de Combustión (MPa)", "Valor Óptimo": sim_opt.params['P_combustion'] / 1e6},
+                    {"Parámetro Optimizado": "Presión Salida Turbina (MPa)", "Valor Óptimo": sim_opt.params['P_salida_turbina'] / 1e6},
+                    {"Parámetro Optimizado": "Fracción Recirculación (%)", "Valor Óptimo": sim_opt.params['fraccion_recirculacion'] * 100},
+                    {"Parámetro Optimizado": "Flujo Combustible (mol/s)", "Valor Óptimo": sim_opt.params['flujo_combustible']}
+                ]
+                df_params = pd.DataFrame(params_to_show)
+                df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
                 
                 sheets_written.append(sheet_opt)
 
@@ -1929,8 +1870,6 @@ if tab1.is_active:
     st.header("Diagrama del Ciclo de Brayton con Oxicombustión")
 
     # Intentar cargar el diagrama
-    import os
-
     try:
         # Obtener la ruta absoluta del directorio del script
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -2527,10 +2466,6 @@ if tab5.is_active:
     # Botón para ejecutar análisis
     if st.button("▶️ CORRER ANÁLISIS", type="primary", disabled=not analisis_valido):
         with st.spinner("Ejecutando análisis de sensibilidad... Esto puede tomar unos momentos."):
-
-            # Importar numpy para el análisis
-            import numpy as np
-            import pandas as pd
 
             # Vector de fracciones a analizar
             fracciones = np.linspace(f_min/100, f_max/100, num_pasos)
