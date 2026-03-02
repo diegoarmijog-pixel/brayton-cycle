@@ -14,56 +14,8 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Simulador Ciclo Brayton Oxicombustión", layout="wide")
 
-# Título principal y Toggle Modo Oscuro
-col_header_1, col_header_2 = st.columns([6, 1])
-with col_header_1:
-    st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
-with col_header_2:
-    st.write("") # Espacio para alinear verticalmente
-    st.write("")
-    modo_oscuro = st.toggle("Modo Oscuro", value=False, help="Cambia el diagrama a versión oscura (fondo negro).")
-
-# Aplicar estilos CSS para Modo Oscuro
-if modo_oscuro:
-    st.markdown("""
-        <style>
-        /* Fondo principal y texto */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
-        }
-        /* Sidebar */
-        [data-testid="stSidebar"] {
-            background-color: #262730;
-        }
-        /* Header superior */
-        header[data-testid="stHeader"] {
-            background-color: #0E1117 !important;
-        }
-        /* Headers y Texto */
-        h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, .stText {
-            color: #FAFAFA !important;
-        }
-        /* Métricas */
-        [data-testid="stMetricLabel"] {
-            color: #E0E0E0 !important;
-        }
-        [data-testid="stMetricValue"] {
-            color: #FFFFFF !important;
-        }
-        /* Inputs (para asegurar legibilidad) */
-        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-        }
-        /* Botones (Mantener Azul) */
-        .stButton > button {
-            background-color: #0068C9 !important;
-            color: #FFFFFF !important;
-            border: none !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+# Título principal
+st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
 
 # ============================================================================
 # CLASES Y FUNCIONES AUXILIARES
@@ -1983,23 +1935,15 @@ if tab1.is_active:
         # Obtener la ruta absoluta del directorio del script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
-        # Definir lista de nombres según el modo seleccionado
-        if modo_oscuro:
-            posibles_nombres = [
-                "diagrama_black.png",
-                "diagrama_brayton_black.png",
-                "diagramas brayton_black.png",
-                "diagrama_brayton_corregido_black.png"
-            ]
-        else:
-            posibles_nombres = [
-                "diagrama_white.png",
-                "diagrama_brayton_white.png",
-                "diagramas brayton_white.png",
-                "diagrama_brayton_corregido.png",
-                "diagramas brayton_corregido.png",
-                "diagrama_brayton.png"
-            ]
+        # Definir lista de nombres (versión clara)
+        posibles_nombres = [
+            "diagrama_white.png",
+            "diagrama_brayton_white.png",
+            "diagramas brayton_white.png",
+            "diagrama_brayton_corregido.png",
+            "diagramas brayton_corregido.png",
+            "diagrama_brayton.png"
+        ]
         
         imagen_path = None
         for nombre in posibles_nombres:
