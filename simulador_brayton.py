@@ -279,22 +279,6 @@ class Corriente:
         }
         return conversion.get(nombre, nombre)
 
-    def _es_mezcla_soportada(self):
-        """Verifica si la mezcla es soportada por CoolProp"""
-        # CoolProp soporta mezclas predefinidas comunes
-        componentes = set(self.composicion.keys())
-
-        # CO2-H2O es una mezcla común en combustión
-        if componentes == {"CO2", "H2O"}:
-            return True
-
-        # Mezclas con gases comunes
-        gases_soportados = {"CO2", "H2O", "N2", "O2", "CH4", "H2", "CO"}
-        if componentes.issubset(gases_soportados):
-            return True
-
-        return False
-
     def _calcular_mezcla_componentes_puros(self):
         """
         Calcula propiedades usando HEOS para cada componente puro
@@ -1023,12 +1007,6 @@ class SimuladorBrayton:
             # CALCULAR C5-C9 PARA OBTENER n_CO2_recirculado_new
             # ====================================================================
 
-            # C5: Salida recuperador (lado caliente)
-            T5 = self.corrientes[4].T - epsilon_rec * (self.corrientes[4].T - (self.params['T_ambiente'] + 50))
-
-            # C6: Entrada separador
-            T6 = self.params['T_separador']
-
             # C7: CO2 puro (después de separar agua)
             n_CO2_puro = n_total_productos * comp_productos_total.get("CO2", 0.5)
 
@@ -1264,12 +1242,6 @@ class SimuladorBrayton:
         # Contribución del CO2 recirculado (C11) - esta es la clave del recuperador
         if self.corrientes[11].h:
             H_entrada_combustor += n_CO2_recirculado * self.corrientes[11].h
-
-        # Entalpía de salida del combustor (C3)
-        if self.corrientes[3].h:
-            H_salida_combustor = n_total_productos * self.corrientes[3].h
-        else:
-            H_salida_combustor = H_entrada_combustor
 
         # ====================================================================
         # CALOR DE ENTRADA PARA CÁLCULO DE EFICIENCIA
@@ -1719,13 +1691,15 @@ if has_base or has_sens or has_opt:
                 row_idx += len(df_corr_opt) + 3
 
                 # Parámetros óptimos (Al final para mantener el orden superior igual a la base)
-                if 'params_optimos' in st.session_state:
-                    x_opt = st.session_state['params_optimos']
-                    df_params = pd.DataFrame({
-                        "Parámetro Optimizado": ["P_combustion (Pa)", "P_salida_turbina (Pa)", "f_recirculacion", "flujo_combustible (mol/s)"],
-                        "Valor Óptimo": x_opt
-                    })
-                    df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
+                # Usar los parámetros almacenados en el objeto simulador para mayor precisión
+                params_to_show = [
+                    {"Parámetro Optimizado": "Presión de Combustión (MPa)", "Valor Óptimo": sim_opt.params['P_combustion'] / 1e6},
+                    {"Parámetro Optimizado": "Presión Salida Turbina (MPa)", "Valor Óptimo": sim_opt.params['P_salida_turbina'] / 1e6},
+                    {"Parámetro Optimizado": "Fracción Recirculación (%)", "Valor Óptimo": sim_opt.params['fraccion_recirculacion'] * 100},
+                    {"Parámetro Optimizado": "Flujo Combustible (mol/s)", "Valor Óptimo": sim_opt.params['flujo_combustible']}
+                ]
+                df_params = pd.DataFrame(params_to_show)
+                df_params.to_excel(writer, sheet_name=sheet_opt, startrow=row_idx, index=False)
                 
                 sheets_written.append(sheet_opt)
 
@@ -1885,21 +1859,27 @@ if tab1.is_active:
     st.header("Diagrama del Ciclo de Brayton con Oxicombustión")
 
     # Intentar cargar el diagrama
-    import os
-
     try:
         # Obtener la ruta absoluta del directorio del script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Definir lista de nombres según el modo seleccionado
-        posibles_nombres = [
-            "diagrama_white.png",
-            "diagrama_brayton_white.png",
-            "diagramas brayton_white.png",
-            "diagrama_brayton_corregido.png",
-            "diagramas brayton_corregido.png",
-            "diagrama_brayton.png"
-        ]
+        if modo_oscuro:
+            posibles_nombres = [
+                "diagrama_black.png",
+                "diagrama_brayton_black.png",
+                "diagramas brayton_black.png",
+                "diagrama_brayton_corregido_black.png"
+            ]
+        else:
+            posibles_nombres = [
+                "diagrama_white.png",
+                "diagrama_brayton_white.png",
+                "diagramas brayton_white.png",
+                "diagrama_brayton_corregido.png",
+                "diagramas brayton_corregido.png",
+                "diagrama_brayton.png"
+            ]
         
         imagen_path = None
         for nombre in posibles_nombres:
@@ -2483,10 +2463,6 @@ if tab5.is_active:
     # Botón para ejecutar análisis
     if st.button("▶️ CORRER ANÁLISIS", type="primary", disabled=not analisis_valido):
         with st.spinner("Ejecutando análisis de sensibilidad... Esto puede tomar unos momentos."):
-
-            # Importar numpy para el análisis
-            import numpy as np
-            import pandas as pd
 
             # Vector de fracciones a analizar
             fracciones = np.linspace(f_min/100, f_max/100, num_pasos)
