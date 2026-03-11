@@ -6,7 +6,7 @@ from CoolProp import CoolProp as CP
 from PIL import Image
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.optimize import differential_evolution
+from scipy.optimize import differential_evolution, brentq
 import io
 import os
 
@@ -85,19 +85,8 @@ def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
     T_combustion : float
         Temperatura de combustión calculada (K)
     """
-    from scipy.optimize import brentq
-
     # Entalpía objetivo (J/s)
     H_objetivo = H_entrada_combustor + Q_combustion
-
-    print(f"\n[DEBUG calcular_T_combustion_balance]")
-    print(f"  H_entrada_combustor: {H_entrada_combustor/1e6:.4f} MW")
-    print(f"  Q_combustion: {Q_combustion/1e6:.4f} MW")
-    print(f"  H_objetivo: {H_objetivo/1e6:.4f} MW")
-    print(f"  n_total_productos: {n_total_productos:.2f} mol/s")
-    print(f"  h_objetivo por mol: {H_objetivo/n_total_productos/1e6:.4f} MJ/mol")
-    print(f"  Composición: {comp_productos_total}")
-    print(f"  P_combustion: {P_combustion/1e5:.1f} bar")
 
     # Función objetivo: H_salida(T) - H_objetivo = 0
     def objetivo(T):
@@ -117,34 +106,16 @@ def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
 
     # Buscar T que satisfaga el balance
     try:
-        # DEBUG: Evaluar en varios puntos
-        print(f"\n  Evaluando balance en diferentes temperaturas:")
-        T_test = [800, 1000, 1200, 1500, 1800, 2000, 2500, 3000]
-        for T_c in T_test:
-            T_k = T_c + 273.15
-            if T_k >= T_min and T_k <= T_max:
-                # Calcular h en este punto
-                corr_test = Corriente("test", T=T_k, P=P_combustion,
-                                     composicion=comp_productos_total, flujo_molar=n_total_productos)
-                corr_test.calcular_propiedades(metodo_mezcla="fugacidad")
-                if corr_test.h:
-                    H_calc = n_total_productos * corr_test.h
-                    error = H_calc - H_objetivo
-                    print(f"    T={T_c:4d}°C: h={corr_test.h/1e6:.3f} MJ/mol, H={H_calc/1e6:.2f} MW, error={error/1e6:+.2f} MW")
-
         T_combustion = brentq(objetivo, T_min, T_max, maxiter=50, xtol=1.0)
 
         # Validación adicional: verificar que la solución sea físicamente razonable
         error_final = objetivo(T_combustion)
-        # print(f"  Solución encontrada: T = {T_combustion-273.15:.1f}°C, error = {error_final/1e6:.4f} MW")
 
         if abs(error_final) > 1e6:  # Error muy grande
             # El balance no converge bien, usar límites
             if H_objetivo > 0:
-                # print(f"  ⚠️ Error grande, retornando T_max")
                 return T_max  # Mucha energía disponible
             else:
-                # print(f"  ⚠️ Error grande, retornando T_min")
                 return T_min  # Poca energía
 
         return T_combustion
@@ -152,21 +123,16 @@ def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
         # Si no hay solución en el rango, verificar los extremos
         error_min = objetivo(T_min)
         error_max = objetivo(T_max)
-        # print(f"  ⚠️ ValueError en brentq: {e}")
-        # print(f"  error_min: {error_min/1e6:.2f} MW, error_max: {error_max/1e6:.2f} MW")
 
         # Si ambos errores son del mismo signo, el rango no contiene la solución
         if (error_min > 0 and error_max > 0):
             # Ambos positivos: H_objetivo es menor que H_salida mínima
-            # print(f"  → Combustible insuficiente, retornando T_min")
             return T_min  # Combustible insuficiente
         elif (error_min < 0 and error_max < 0):
             # Ambos negativos: H_objetivo es mayor que H_salida máxima
-            # print(f"  → Combustible excesivo, retornando T_max")
             return T_max  # Combustible excesivo
         else:
             # Errores de signos opuestos pero brentq falló
-            # print(f"  → Signos opuestos pero brentq falló")
             if abs(error_min) < abs(error_max):
                 return T_min
             else:
@@ -913,20 +879,6 @@ class SimuladorBrayton:
             # LHV corregido para presión alta
             LHV_corregido = combustible.LHV + (Delta_H_productos - Delta_H_reactivos)
 
-            # DEBUG: Mostrar correcciones
-            if not hasattr(self, '_debug_LHV_printed'):
-                print(f"\n{'='*80}")
-                print(f"CORRECCIÓN DE LHV PARA ALTA PRESIÓN")
-                print(f"{'='*80}")
-                print(f"LHV(1 atm):              {combustible.LHV/1000:.2f} kJ/mol")
-                print(f"ΔH_productos(P):         {Delta_H_productos/1000:+.2f} kJ/mol")
-                print(f"ΔH_reactivos(P):         {Delta_H_reactivos/1000:+.2f} kJ/mol")
-                print(f"Corrección neta:         {(Delta_H_productos - Delta_H_reactivos)/1000:+.2f} kJ/mol")
-                print(f"LHV(150 bar):            {LHV_corregido/1000:.2f} kJ/mol")
-                print(f"Cambio relativo:         {((LHV_corregido/combustible.LHV - 1)*100):+.2f}%")
-                print(f"{'='*80}\n")
-                self._debug_LHV_printed = True
-
             # Energía química con LHV corregido
             Q_combustion = n_combustible * LHV_corregido  # J/s
 
@@ -936,35 +888,12 @@ class SimuladorBrayton:
             # Es decir, la función objetivo pasa delta_H_sensible_entrada y LHV
             # y busca T tal que delta_H_sensible_productos = delta_H_sensible_entrada + LHV
 
-            # DEBUG: Mostrar balance simple
-            if not hasattr(self, '_debug_printed'):
-                print(f"\n{'='*80}")
-                print(f"COMBUSTIÓN - MÉTODO ORIGINAL SIMPLE (RESTAURADO)")
-                print(f"{'='*80}")
-                print(f"n_combustible:      {n_combustible:.2f} mol/s")
-                print(f"n_O2:               {n_O2:.2f} mol/s")
-                print(f"n_CO2_recirculado:  {n_CO2_recirculado:.2f} mol/s")
-                print(f"n_total_productos:  {n_total_productos:.2f} mol/s")
-                print(f"")
-                print(f"H_entrada:          {H_entrada_combustor/1e6:.4f} MW")
-                print(f"Q_combustion (LHV): {Q_combustion/1e6:.4f} MW")
-                print(f"H_objetivo:         {(H_entrada_combustor + Q_combustion)/1e6:.4f} MW")
-                print(f"{'='*80}\n")
-                self._debug_printed = True
-
             # Resolver para T_combustion usando balance simple original:
             # H_salida = H_entrada + Q_combustion
             T_combustion_calculada = calcular_T_combustion_balance(
                 H_entrada_combustor, n_total_productos, Q_combustion,
                 self.params['P_combustion'], comp_productos_total
             )
-
-            if hasattr(self, '_debug_printed') and self._debug_printed:
-                print(f"\n--- RESULTADO FINAL ---")
-                print(f"T_combustion_calculada: {T_combustion_calculada-273.15:.2f} °C")
-                print(f"Composición productos: {comp_productos_total}")
-                print(f"{'='*80}\n")
-                self._debug_printed = False  # Reset para próxima simulación
 
             # Crear corriente C3 con la T_combustion calculada
             self.corrientes[3] = Corriente(
@@ -1864,22 +1793,14 @@ if tab1.is_active:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Definir lista de nombres según el modo seleccionado
-        if modo_oscuro:
-            posibles_nombres = [
-                "diagrama_black.png",
-                "diagrama_brayton_black.png",
-                "diagramas brayton_black.png",
-                "diagrama_brayton_corregido_black.png"
-            ]
-        else:
-            posibles_nombres = [
-                "diagrama_white.png",
-                "diagrama_brayton_white.png",
-                "diagramas brayton_white.png",
-                "diagrama_brayton_corregido.png",
-                "diagramas brayton_corregido.png",
-                "diagrama_brayton.png"
-            ]
+        posibles_nombres = [
+            "diagrama_white.png",
+            "diagrama_brayton_white.png",
+            "diagramas brayton_white.png",
+            "diagrama_brayton_corregido.png",
+            "diagramas brayton_corregido.png",
+            "diagrama_brayton.png"
+        ]
         
         imagen_path = None
         for nombre in posibles_nombres:
@@ -3206,42 +3127,8 @@ if tab6.is_active:
         st.subheader("🔧 Balance Energético")
 
         # Calcular trabajos de compresores desde las corrientes
-        if 1 in sim_optimo.corrientes:
-            n_combustible = sim_optimo.corrientes[1].flujo_molar
-            T_amb_K = sim_optimo.params['T_ambiente']
-            P_amb = 101325  # Pa
-
-            # Crear combustible y corriente de entrada temporal
-            combustible_temp = Combustible(sim_optimo.params['tipo_combustible'])
-            corriente_0_temp = Corriente(
-                "Entrada compresor fuel",
-                T=T_amb_K,
-                P=P_amb,
-                composicion=combustible_temp.composicion,
-                flujo_molar=n_combustible
-            )
-            corriente_0_temp.calcular_propiedades()
-            h_0 = corriente_0_temp.h  # J/mol
-            h_1 = sim_optimo.corrientes[1].h  # J/mol
-            W_comp_fuel = (n_combustible * (h_1 - h_0)) / 1e6  # MW
-        else:
-            W_comp_fuel = 0.0
-
-        # Trabajo compresor CO2 recirculación
-        # Intentar obtener del atributo calculado
-        if hasattr(sim_optimo, 'W_CO2comp_recirculacion'):
-            W_comp_CO2_recirc = sim_optimo.W_CO2comp_recirculacion
-        # Si no existe, calcular desde corrientes 8 y 9
-        elif 8 in sim_optimo.corrientes and 9 in sim_optimo.corrientes:
-            n_CO2_recirc = sim_optimo.corrientes[8].flujo_molar
-            h_8 = sim_optimo.corrientes[8].h
-            h_9 = sim_optimo.corrientes[9].h
-            if h_8 and h_9:
-                W_comp_CO2_recirc = (n_CO2_recirc * (h_9 - h_8)) / 1e6  # MW
-            else:
-                W_comp_CO2_recirc = 0.0
-        else:
-            W_comp_CO2_recirc = 0.0
+        W_comp_fuel = getattr(sim_optimo, 'W_compresor_fuel', 0.0)
+        W_comp_CO2_recirc = getattr(sim_optimo, 'W_CO2comp_recirculacion', 0.0)
 
         # Potencia ASU
         W_ASU = sim_optimo.W_ASU if hasattr(sim_optimo, 'W_ASU') else 0.0

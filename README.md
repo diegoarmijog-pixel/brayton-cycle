@@ -189,7 +189,6 @@ streamlit run simulador_brayton.py
 | `streamlit` | latest | Interfaz web interactiva |
 | `pandas` | latest | Manipulación de datos tabulares |
 | `numpy` | latest | Cálculos numéricos y arrays |
-| `matplotlib` | latest | Gráficos base |
 | `plotly` | latest | Diagramas P-H y T-S interactivos |
 | `CoolProp` | latest | Propiedades termodinámicas HEOS |
 | `Pillow` | latest | Manejo de imágenes del diagrama |
@@ -491,7 +490,7 @@ simulador definitivo/
 ├── simulador_brayton.py                      # Código principal (~3140 líneas)
 ├── README.md                                 # Este archivo
 ├── requirements.txt                          # Dependencias Python
-├── diagrama_brayton_corregido.png           # Diagrama del proceso
+├── diagrama_white.png                        # Diagrama del proceso (tema claro)
 │
 └── Documentación/
     ├── Ecuaciones_y_Parametros_Termodinamicos.md    # Ecuaciones completas
@@ -880,6 +879,12 @@ El código ha sido validado contra:
 **Licencia**: Uso académico restringido. No redistribuir sin autorización.
 
 ## Changelog
+
+### Versión 4.1 (Actualización Reciente)
+- ✅ **Limpieza de Código**: Eliminación de fórmulas redundantes y depuración de lógica.
+- ✅ **Optimización de Assets**: Eliminación de diagramas no utilizados (Modo Oscuro eliminado).
+- ✅ **Interfaz Unificada**: Uso exclusivo del tema claro para mayor consistencia visual.
+- ✅ **Documentación**: Actualización de dependencias y estructura de archivos.
 
 ### Versión 4.0 (Noviembre 2024) - ACTUAL
 - ✅ **Nueva interfaz de navegación jerárquica** de 2 niveles con 3 secciones principales
