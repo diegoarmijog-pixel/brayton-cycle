@@ -14,56 +14,8 @@ import os
 # Configuración de la página
 st.set_page_config(page_title="Simulador Ciclo Brayton Oxicombustión", layout="wide")
 
-# Título principal y Toggle Modo Oscuro
-col_header_1, col_header_2 = st.columns([6, 1])
-with col_header_1:
-    st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
-with col_header_2:
-    st.write("") # Espacio para alinear verticalmente
-    st.write("")
-    modo_oscuro = st.toggle("Modo Oscuro", value=False, help="Cambia el diagrama a versión oscura (fondo negro).")
-
-# Aplicar estilos CSS para Modo Oscuro
-if modo_oscuro:
-    st.markdown("""
-        <style>
-        /* Fondo principal y texto */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
-        }
-        /* Sidebar */
-        [data-testid="stSidebar"] {
-            background-color: #262730;
-        }
-        /* Header superior */
-        header[data-testid="stHeader"] {
-            background-color: #0E1117 !important;
-        }
-        /* Headers y Texto */
-        h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, .stText {
-            color: #FAFAFA !important;
-        }
-        /* Métricas */
-        [data-testid="stMetricLabel"] {
-            color: #E0E0E0 !important;
-        }
-        [data-testid="stMetricValue"] {
-            color: #FFFFFF !important;
-        }
-        /* Inputs (para asegurar legibilidad) */
-        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-        }
-        /* Botones (Mantener Azul) */
-        .stButton > button {
-            background-color: #0068C9 !important;
-            color: #FFFFFF !important;
-            border: none !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+# Título principal
+st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
 
 # ============================================================================
 # CLASES Y FUNCIONES AUXILIARES
@@ -104,7 +56,7 @@ def calcular_T_separador_automatica(P_separador_Pa, delta_T=10.0):
 
 def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
                                    Q_combustion, P_combustion,
-                                   comp_productos_total, metodo_mezcla=None,
+                                   comp_productos_total,
                                    T_min=500+273.15, T_max=3500+273.15):
     """
     Calcula la temperatura de combustión mediante balance energético.
@@ -123,10 +75,6 @@ def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
         Presión de combustión (Pa)
     comp_productos_total : dict
         Composición molar de productos {"CO2": x, "H2O": y}
-    metodo_mezcla : str (opcional, ignorado)
-        Mantenido por compatibilidad. El método se selecciona automáticamente:
-        - HEOS para componentes puros
-        - Peng-Robinson con van der Waals para mezclas
     T_min : float
         Temperatura mínima búsqueda (K) - default 500°C
     T_max : float
@@ -863,46 +811,6 @@ class SimuladorBrayton:
             # Donde:
             # - H(T) son entalpías sensibles desde 298K (lo que calcula CoolProp)
             # - Q_combustion es el LHV (incluye diferencia de entalpía de formación)
-
-            # Calcular DIFERENCIA de entalpía sensible entrada: ΔH = H(T_in) - H(298K)
-            # Esto elimina dependencia de referencias arbitrarias de CoolProp
-
-            delta_H_sensible_entrada = 0
-
-            # Combustible: ΔH = n × [h(T_in) - h(298K)]
-            h_fuel_Tin = self.corrientes[1].h if self.corrientes[1].h else 0
-            corriente_ref_fuel_298 = Corriente("ref_fuel_298K", T=298.15, P=self.params['P_combustion'],
-                                              composicion=combustible.composicion, flujo_molar=1.0)
-            corriente_ref_fuel_298.calcular_propiedades()
-            h_fuel_298 = corriente_ref_fuel_298.h if corriente_ref_fuel_298.h else 0
-            delta_H_sensible_entrada += n_combustible * (h_fuel_Tin - h_fuel_298)
-
-            # O2: ΔH = n × [h(T_in) - h(298K)]
-            h_O2_Tin = self.corrientes[2].h if self.corrientes[2].h else 0
-            corriente_ref_O2_298 = Corriente("ref_O2_298K", T=298.15, P=self.params['P_combustion'],
-                                            composicion={"O2": 1.0}, flujo_molar=1.0)
-            corriente_ref_O2_298.calcular_propiedades()
-            h_O2_298 = corriente_ref_O2_298.h if corriente_ref_O2_298.h else 0
-            delta_H_sensible_entrada += n_O2 * (h_O2_Tin - h_O2_298)
-
-            # CO2 recirculado: ΔH = n × [h(T_in) - h(298K)]
-            if 11 in self.corrientes and self.corrientes[11].h:
-                h_CO2_Tin = self.corrientes[11].h
-            else:
-                # Estimación primera iteración: CO2 a ~968°C
-                T_CO2_recirc_estimado = 1241  # K
-                corriente_CO2_est = Corriente("CO2_recirc_estimado",
-                                              T=T_CO2_recirc_estimado,
-                                              P=self.params['P_combustion'],
-                                              composicion={"CO2": 1.0}, flujo_molar=1.0)
-                corriente_CO2_est.calcular_propiedades()
-                h_CO2_Tin = corriente_CO2_est.h if corriente_CO2_est.h else 0
-
-            corriente_ref_CO2_298 = Corriente("ref_CO2_298K", T=298.15, P=self.params['P_combustion'],
-                                             composicion={"CO2": 1.0}, flujo_molar=1.0)
-            corriente_ref_CO2_298.calcular_propiedades()
-            h_CO2_298 = corriente_ref_CO2_298.h if corriente_ref_CO2_298.h else 0
-            delta_H_sensible_entrada += n_CO2_recirculado * (h_CO2_Tin - h_CO2_298)
 
             # ============================================================================
             # BALANCE ENERGÉTICO SIMPLE (MÉTODO ORIGINAL RESTAURADO)
@@ -1984,22 +1892,14 @@ if tab1.is_active:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Definir lista de nombres según el modo seleccionado
-        if modo_oscuro:
-            posibles_nombres = [
-                "diagrama_black.png",
-                "diagrama_brayton_black.png",
-                "diagramas brayton_black.png",
-                "diagrama_brayton_corregido_black.png"
-            ]
-        else:
-            posibles_nombres = [
-                "diagrama_white.png",
-                "diagrama_brayton_white.png",
-                "diagramas brayton_white.png",
-                "diagrama_brayton_corregido.png",
-                "diagramas brayton_corregido.png",
-                "diagrama_brayton.png"
-            ]
+        posibles_nombres = [
+            "diagrama_white.png",
+            "diagrama_brayton_white.png",
+            "diagramas brayton_white.png",
+            "diagrama_brayton_corregido.png",
+            "diagramas brayton_corregido.png",
+            "diagrama_brayton.png"
+        ]
         
         imagen_path = None
         for nombre in posibles_nombres:
