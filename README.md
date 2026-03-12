@@ -824,30 +824,6 @@ El código ha sido validado contra:
 
 ---
 
-## Contribuciones y Desarrollo Futuro
-
-### Mejoras Propuestas
-
-**Corto plazo:**
-- [ ] Agregar análisis exergético completo
-- [ ] Incluir análisis económico (CAPEX/OPEX)
-- [ ] Modelar pérdidas de presión en equipos
-- [ ] Optimización multi-objetivo (η vs. W_neto)
-
-**Mediano plazo:**
-- [ ] Transientes y control dinámico
-- [ ] Equilibrio químico en combustión
-- [ ] Análisis de sensibilidad automatizado
-- [ ] Comparación con datos experimentales publicados
-
-**Largo plazo:**
-- [ ] Integración con simuladores CFD
-- [ ] Optimización topológica del ciclo
-- [ ] Machine learning para predicción rápida
-- [ ] Validación experimental con planta piloto
-
----
-
 ## Referencias Principales
 
 ### Ecuaciones de Estado
