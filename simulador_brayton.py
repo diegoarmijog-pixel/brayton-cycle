@@ -1402,10 +1402,9 @@ flujo_combustible = st.sidebar.number_input(
     "Flujo Molar Combustible (mol/s)",
     min_value=1.0,
     max_value=1000.0,
-    value=12.0,  # Ajustado para T_combustion < 1800°C con alta recirculación (93%)
+    value=50.0,  # Ajustado para T_combustion < 1800°C con alta recirculación (93%)
     step=1.0,
     help="⚙️ Flujo de combustible al combustor.\n\n"
-         "📊 Rango típico: 10-15 mol/s (para T_combustión < 1800°C con alta recirculación)\n\n"
          "🎯 Objetivo: Mantener T_combustión entre 1200-1800°C\n\n"
          "⚠️ Si T_combustión > 1800°C → REDUCIR flujo o AUMENTAR recirculación\n"
          "⚠️ Si T_combustión < 1100°C → AUMENTAR flujo"
@@ -2745,9 +2744,9 @@ if tab6.is_active:
         | **Presión de combustión / recirculación** | **8.1 MPa** (81 bar) | 30 MPa (300 bar) | Mín = 1.1×Pc(CO₂) para garantizar régimen supercrítico |
         | Presión salida turbina | 0.1 MPa (1 bar) | 0.5 MPa (5 bar) | Rango típico para ciclos Brayton |
         | Fracción de recirculación | 50% | **97%** | Límite realista (>97% inestable numéricamente) |
-        | Flujo de combustible | 10 mol/s | 25 mol/s | Rango estándar para oxy-combustión |
 
         **Parámetros NO optimizables (fijos o automáticos):**
+        - **Flujo de combustible**: Fijo a 50 mol/s
         - **T_ambiente**: Condición de frontera del sitio (definida en sidebar)
         - **T_separador**: Calculada automáticamente = T_sat_H₂O(P_salida_turbina) - 10°C
         - **T_combustión**: Calculada mediante balance energético (restricción < 1800°C aplicada)
@@ -2802,12 +2801,11 @@ if tab6.is_active:
         # NOTA: T_separador se calcula automáticamente (no optimizable)
         # NOTA: T_ambiente NO es optimizable (condición de frontera ambiental)
         # NOTA: T_combustion se calcula mediante balance energético (no optimizable)
-        # [P_combustion, P_salida_turbina, f_recirculacion, flujo_combustible]
+        # [P_combustion, P_salida_turbina, f_recirculacion]
         bounds = [
             (Pc_CO2 * 1.1, 300e5),            # P_combustion: 8.1-300 bar (>Pc_CO2 para garantizar régimen supercrítico)
             (1.0e5, 5.0e5),                   # P_salida_turbina: 1-5 bar (rango típico)
             (0.50, 0.97),                     # f_recirculacion: 50-97% (límite realista, evita inestabilidad >97%)
-            (10.0, 25.0),                     # flujo_combustible: 10-25 mol/s (rango estándar para Brayton con oxy-combustión)
         ]
 
         # Configuración del optimizador basado en número de evaluaciones
@@ -2843,8 +2841,8 @@ if tab6.is_active:
                     progress_bar.progress(progress)
                     status_text.text(f"Evaluación {iter_count[0]}/{max_evaluaciones}")
 
-                # Extraer parámetros (ahora son 4: incluimos flujo_combustible)
-                P_comb, P_salida_turb, f_recir, flujo_comb = x
+                # Extraer parámetros (ahora son 3)
+                P_comb, P_salida_turb, f_recir = x
 
                 # Validación básica: P_combustion > P_salida_turbina
                 if P_comb <= P_salida_turb:
@@ -2866,7 +2864,7 @@ if tab6.is_active:
                     'P_salida_turbina': P_salida_turb,
                     'P_recirculacion': P_comb,  # Igual a P_combustion
                     'T_separador': T_sep_auto,  # Calculada automáticamente
-                    'flujo_combustible': flujo_comb,  # Optimizable
+                    'flujo_combustible': 50.0,  # Fijo a 50 mol/s
                     'fraccion_recirculacion': f_recir,
                     **params_fijos
                 }
@@ -2954,9 +2952,9 @@ if tab6.is_active:
             status_text.text(f"Optimización completada! ({iter_count[0]} evaluaciones totales)")
 
             if resultado.success or resultado.fun < 1e9:
-                # Extraer parámetros óptimos (ahora son 4: incluimos flujo_combustible)
+                # Extraer parámetros óptimos (ahora son 3)
                 x_opt = resultado.x
-                P_comb_opt, P_salida_opt, f_recir_opt, flujo_comb_opt = x_opt
+                P_comb_opt, P_salida_opt, f_recir_opt = x_opt
 
                 # Calcular T_separador automáticamente basado en P_salida_opt
                 T_sep_opt = calcular_T_separador_automatica(P_salida_opt)
@@ -2974,7 +2972,7 @@ if tab6.is_active:
                     'P_salida_turbina': P_salida_opt,
                     'P_recirculacion': P_comb_opt,  # Igual a P_combustion
                     'T_separador': T_sep_opt,  # Calculada automáticamente
-                    'flujo_combustible': flujo_comb_opt,  # Optimizable
+                    'flujo_combustible': 50.0,  # Fijo a 50 mol/s
                     'fraccion_recirculacion': f_recir_opt,
                     **params_fijos
                 }
@@ -3021,7 +3019,8 @@ if tab6.is_active:
 
         sim_optimo = st.session_state['sim_optimo']
         x_opt = st.session_state['params_optimos']
-        P_comb_opt, P_salida_opt, f_recir_opt, flujo_comb_opt = x_opt
+        P_comb_opt, P_salida_opt, f_recir_opt = x_opt
+        flujo_comb_opt = 50.0  # Fijo
 
         # Calcular T_separador
         T_sep_opt = calcular_T_separador_automatica(P_salida_opt)
