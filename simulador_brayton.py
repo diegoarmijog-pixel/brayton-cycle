@@ -1784,7 +1784,7 @@ tab6 = TabContext(selected_main_index == 3)  # Optimización
 # TAB 1: Diagrama del Proceso
 # ============================================================================
 if tab1.is_active:
-    st.header("Diagrama del Ciclo de Brayton con Oxicombustión")
+    st.header("Diagrama Ciclo de Brayton")
 
     # Intentar cargar el diagrama
     try:
@@ -1810,12 +1810,12 @@ if tab1.is_active:
         
         if imagen_path:
             imagen = Image.open(imagen_path)
-            st.image(imagen, caption=f"Diagrama del proceso ({os.path.basename(imagen_path)})", use_container_width=True)
+            st.image(imagen, caption="PFD Ciclo de Brayton semiabierto con Oxicombustión", use_container_width=True)
         else:
             # Intentar con ruta relativa
             try:
                 imagen = Image.open("diagrama_brayton.png")
-                st.image(imagen, caption="Diagrama del proceso", use_container_width=True)
+                st.image(imagen, caption="PFD Ciclo de Brayton semiabierto con Oxicombustión", use_container_width=True)
             except:
                 st.warning("⚠️ No se pudo cargar el diagrama.")
     except FileNotFoundError:
@@ -2746,7 +2746,7 @@ if tab6.is_active:
         | Fracción de recirculación | 50% | **97%** | Límite realista (>97% inestable numéricamente) |
 
         **Parámetros NO optimizables (fijos o automáticos):**
-        - **Flujo de combustible**: Fijo a 50 mol/s
+        - **Flujo de combustible**: Toma el valor definido en el panel lateral
         - **T_ambiente**: Condición de frontera del sitio (definida en sidebar)
         - **T_separador**: Calculada automáticamente = T_sat_H₂O(P_salida_turbina) - 10°C
         - **T_combustión**: Calculada mediante balance energético (restricción < 1800°C aplicada)
@@ -2864,7 +2864,7 @@ if tab6.is_active:
                     'P_salida_turbina': P_salida_turb,
                     'P_recirculacion': P_comb,  # Igual a P_combustion
                     'T_separador': T_sep_auto,  # Calculada automáticamente
-                    'flujo_combustible': 50.0,  # Fijo a 50 mol/s
+                    'flujo_combustible': flujo_combustible,  # Tomado del panel lateral
                     'fraccion_recirculacion': f_recir,
                     **params_fijos
                 }
@@ -2972,7 +2972,7 @@ if tab6.is_active:
                     'P_salida_turbina': P_salida_opt,
                     'P_recirculacion': P_comb_opt,  # Igual a P_combustion
                     'T_separador': T_sep_opt,  # Calculada automáticamente
-                    'flujo_combustible': 50.0,  # Fijo a 50 mol/s
+                    'flujo_combustible': flujo_combustible,  # Tomado del panel lateral
                     'fraccion_recirculacion': f_recir_opt,
                     **params_fijos
                 }
@@ -3020,7 +3020,7 @@ if tab6.is_active:
         sim_optimo = st.session_state['sim_optimo']
         x_opt = st.session_state['params_optimos']
         P_comb_opt, P_salida_opt, f_recir_opt = x_opt
-        flujo_comb_opt = 50.0  # Fijo
+        flujo_comb_opt = flujo_combustible  # Tomado del panel lateral
 
         # Calcular T_separador
         T_sep_opt = calcular_T_separador_automatica(P_salida_opt)
