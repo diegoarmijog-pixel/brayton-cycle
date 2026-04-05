@@ -1353,50 +1353,6 @@ if T_separador_resultante > 120:
 elif T_separador_resultante < T_ambiente:
     st.sidebar.warning(f"⚠️ T_separador calculada ({T_separador_resultante:.1f}°C) es menor que T_ambiente ({T_ambiente:.1f}°C). Se requiere enfriamiento activo.")
 
-st.sidebar.subheader("Eficiencias de Equipos")
-
-# Eficiencia turbina
-eta_turbina = st.sidebar.slider(
-    "Eficiencia Isentrópica Turbina (%)",
-    min_value=70.0,
-    max_value=95.0,
-    value=93.0,
-    step=1.0,
-    help="Turbinas modernas de gas: 88-92%. Valor óptimo: 90%"
-) / 100
-
-# Eficiencia compresor combustible
-eta_compresor_fuel = st.sidebar.slider(
-    "Eficiencia Isentrópica Compresor Combustible (%)",
-    min_value=70.0,
-    max_value=95.0,
-    value=89.0,
-    step=1.0,
-    help="Compresor del combustible (C1). Compresores centrífugo/axial modernos: 85-90%. Valor óptimo: 88%"
-) / 100
-
-# Eficiencia compresor CO2
-eta_compresor_CO2 = st.sidebar.slider(
-    "Eficiencia Isentrópica Compresor CO₂ (%)",
-    min_value=70.0,
-    max_value=95.0,
-    value=89.0,
-    step=1.0,
-    help="Compresor de CO₂ para recirculación (C7→C8). Compresión de CO₂: 82-88%. Valor típico: 85%"
-) / 100
-
-# Efectividad recuperador
-efectividad_recuperador = st.sidebar.slider(
-    "Efectividad Recuperador (%)",
-    min_value=50.0,
-    max_value=95.0,
-    value=90.0,
-    step=5.0,
-    help="Recuperadores avanzados: 85-95%. Mayor recuperación → Menor consumo combustible"
-) / 100
-
-st.sidebar.subheader("Parámetros del Ciclo")
-
 # Flujo de combustible
 flujo_combustible = st.sidebar.number_input(
     "Flujo Molar Combustible (mol/s)",
@@ -1440,6 +1396,48 @@ P_recirculacion = P_combustion  # Igualdad termodinámica obligatoria
 # T_separador se calcula automáticamente
 T_separador_K = calcular_T_separador_automatica(P_salida_turbina * 1e6)  # En K
 T_separador = T_separador_K - 273.15  # En °C
+
+st.sidebar.subheader("Eficiencias de Equipos")
+
+# Eficiencia turbina
+eta_turbina = st.sidebar.slider(
+    "Eficiencia Isentrópica Turbina (%)",
+    min_value=70.0,
+    max_value=95.0,
+    value=93.0,
+    step=1.0,
+    help="Turbinas modernas de gas: 88-92%. Valor óptimo: 90%"
+) / 100
+
+# Eficiencia compresor combustible
+eta_compresor_fuel = st.sidebar.slider(
+    "Eficiencia Isentrópica Compresor Combustible (%)",
+    min_value=70.0,
+    max_value=95.0,
+    value=89.0,
+    step=1.0,
+    help="Compresor del combustible (C1). Compresores centrífugo/axial modernos: 85-90%. Valor óptimo: 88%"
+) / 100
+
+# Eficiencia compresor CO2
+eta_compresor_CO2 = st.sidebar.slider(
+    "Eficiencia Isentrópica Compresor CO₂ (%)",
+    min_value=70.0,
+    max_value=95.0,
+    value=89.0,
+    step=1.0,
+    help="Compresor de CO₂ para recirculación (C7→C8). Compresión de CO₂: 82-88%. Valor típico: 85%"
+) / 100
+
+# Efectividad recuperador
+efectividad_recuperador = st.sidebar.slider(
+    "Efectividad Recuperador (%)",
+    min_value=50.0,
+    max_value=95.0,
+    value=90.0,
+    step=5.0,
+    help="Recuperadores avanzados: 85-95%. Mayor recuperación → Menor consumo combustible"
+) / 100
 
 # ============================================================================
 # EXPORTACIÓN DE RESULTADOS (EXCEL)
