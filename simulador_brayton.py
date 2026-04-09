@@ -984,7 +984,7 @@ class SimuladorBrayton:
         self.corrientes[5] = Corriente(
             "Salida recuperador",
             T=T5,
-            P=P_salida_turbina * 0.98,  # Pequeña caída de presión
+            P=P_salida_turbina,
             composicion=comp_productos_total,
             flujo_molar=n_total_productos
         )
@@ -998,7 +998,7 @@ class SimuladorBrayton:
         self.corrientes[6] = Corriente(
             "Entrada separador",
             T=T6,
-            P=P_salida_turbina * 0.96,
+            P=P_salida_turbina,
             composicion=comp_productos_total,
             flujo_molar=n_total_productos
         )
@@ -1013,7 +1013,7 @@ class SimuladorBrayton:
         self.corrientes[7] = Corriente(
             "CO2 puro (salida separador agua)",
             T=T6,
-            P=P_salida_turbina * 0.95,
+            P=P_salida_turbina,
             composicion={"CO2": 1.0},
             flujo_molar=n_CO2_puro_total
         )
@@ -1035,7 +1035,7 @@ class SimuladorBrayton:
         self.corrientes[8] = Corriente(
             "CO2 para recirculación (entrada compresor)",
             T=T6,
-            P=P_salida_turbina * 0.95,
+            P=P_salida_turbina,
             composicion={"CO2": 1.0},
             flujo_molar=n_CO2_recirculado_actual
         )
@@ -1048,7 +1048,7 @@ class SimuladorBrayton:
         self.corrientes[12] = Corriente(
             "CO2 capturado (a almacenamiento)",
             T=T6,
-            P=P_salida_turbina * 0.95,  # Baja presión
+            P=P_salida_turbina,
             composicion={"CO2": 1.0},
             flujo_molar=n_CO2_capturado
         )
@@ -1081,7 +1081,7 @@ class SimuladorBrayton:
         self.corrientes[10] = Corriente(
             "CO2 enfriado (salida intercambiador 3)",
             T=T10,
-            P=P_recirculacion * 0.98,
+            P=P_recirculacion,
             composicion={"CO2": 1.0},
             flujo_molar=n_CO2_recirculado_actual
         )
@@ -1096,7 +1096,7 @@ class SimuladorBrayton:
         self.corrientes[11] = Corriente(
             "CO2 precalentado (salida recuperador)",
             T=T11,
-            P=self.params['P_combustion'] * 0.95,
+            P=self.params['P_combustion'],
             composicion={"CO2": 1.0},
             flujo_molar=n_CO2_recirculado_actual
         )
@@ -1334,7 +1334,7 @@ P_salida_turbina = st.sidebar.number_input(
     "Presión Salida Turbina (MPa)",
     min_value=0.1,
     max_value=5.0,
-    value=0.12,
+    value=3.0,
     step=0.01,
     help="Menor presión → Mayor expansión → Mayor trabajo. Mínimo: 0.1 MPa (1 bar, atmosférica). Máximo recomendado: 0.5 MPa para facilitar condensación de H₂O."
 )
@@ -1342,16 +1342,6 @@ P_salida_turbina = st.sidebar.number_input(
 # Validaciones de P_salida_turbina
 if P_salida_turbina >= P_combustion:
     st.sidebar.error("❌ Error: P_salida_turbina debe ser MENOR que P_combustion para que haya expansión en la turbina.")
-
-# Verificar si T_separador resultante es razonable
-from CoolProp.CoolProp import PropsSI
-T_sat_H2O_at_P_salida = PropsSI('T', 'P', P_salida_turbina * 1e6, 'Q', 0, 'Water') - 273.15  # °C
-T_separador_resultante = T_sat_H2O_at_P_salida - 10  # °C
-
-if T_separador_resultante > 120:
-    st.sidebar.warning(f"⚠️ P_salida_turbina = {P_salida_turbina:.2f} MPa resulta en T_separador ≈ {T_separador_resultante:.1f}°C (muy alta para condensación eficiente)")
-elif T_separador_resultante < T_ambiente:
-    st.sidebar.warning(f"⚠️ T_separador calculada ({T_separador_resultante:.1f}°C) es menor que T_ambiente ({T_ambiente:.1f}°C). Se requiere enfriamiento activo.")
 
 # Flujo de combustible
 flujo_combustible = st.sidebar.number_input(
@@ -1371,7 +1361,7 @@ fraccion_recirculacion = st.sidebar.slider(
     "Fracción de Recirculación CO2 (%)",
     min_value=0.0,
     max_value=99.0,
-    value=93.0,
+    value=95.0,
     step=1.0,
     help="Rango típico Ciclo Allam: 85-95%. Valores >97% pueden causar inestabilidad numérica."
 ) / 100
@@ -2740,7 +2730,7 @@ if tab6.is_active:
         | Parámetro | Rango Mínimo | Rango Máximo | Notas |
         |-----------|--------------|--------------|-------|
         | **Presión de combustión / recirculación** | **8.1 MPa** (81 bar) | 30 MPa (300 bar) | Mín = 1.1×Pc(CO₂) para garantizar régimen supercrítico |
-        | Presión salida turbina | 0.1 MPa (1 bar) | 0.5 MPa (5 bar) | Rango típico para ciclos Brayton |
+        | Presión salida turbina | 0.1 MPa (1 bar) | 5.0 MPa (50 bar) | Rango ampliado para permitir razones de presión de 6 a 12 |
         | Fracción de recirculación | 50% | **97%** | Límite realista (>97% inestable numéricamente) |
 
         **Parámetros NO optimizables (fijos o automáticos):**
@@ -2802,7 +2792,7 @@ if tab6.is_active:
         # [P_combustion, P_salida_turbina, f_recirculacion]
         bounds = [
             (Pc_CO2 * 1.1, 300e5),            # P_combustion: 8.1-300 bar (>Pc_CO2 para garantizar régimen supercrítico)
-            (1.0e5, 5.0e5),                   # P_salida_turbina: 1-5 bar (rango típico)
+            (1.0e5, 50.0e5),                  # P_salida_turbina: 0.1-5.0 MPa (rango ampliado)
             (0.50, 0.97),                     # f_recirculacion: 50-97% (límite realista, evita inestabilidad >97%)
         ]
 
@@ -2824,6 +2814,7 @@ if tab6.is_active:
         #   1. T_combustion < 1800°C (límite realista: turbinas avanzadas ~1650°C, Allam ~1100-1600°C)
         #   2. CO2 en corrientes de recirculación debe estar supercrítico (P > 7.377 MPa)
         #   3. W_neto >= 5 MW (evitar soluciones de alta eficiencia pero baja potencia)
+        #   4. Razón de presiones entre 6 y 12 (idealmente cercana a 10)
         def objetivo(x):
             try:
                 iter_count[0] += 1
@@ -2919,9 +2910,20 @@ if tab6.is_active:
                     deficit_potencia = W_minimo - W_neto
                     penalizacion_potencia = deficit_potencia * 1e4  # Penalización alta
 
+                # RESTRICCIÓN: Razón de presiones entre 6 y 12, ideal 10
+                rc = P_comb / P_salida_turb
+                penalizacion_rc = 0
+                if rc < 6:
+                    penalizacion_rc += (6 - rc) * 1e4
+                elif rc > 12:
+                    penalizacion_rc += (rc - 12) * 1e4
+                
+                # Penalización suave para sesgar el óptimo hacia rc = 10
+                penalizacion_rc += abs(rc - 10) * 0.1
+
                 # Función objetivo: maximizar eta_Global (eta_CCS) (minimizar -eta_CCS)
                 # Agregar penalizaciones por restricciones
-                objetivo_val = -eta_CCS + penalizacion_temperatura + penalizacion_supercritico + penalizacion_potencia
+                objetivo_val = -eta_CCS + penalizacion_temperatura + penalizacion_supercritico + penalizacion_potencia + penalizacion_rc
 
                 return objetivo_val
 
