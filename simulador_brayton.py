@@ -948,6 +948,16 @@ class SimuladorBrayton:
             # Calcular T11_new basada en T4 real
             T11_new = T10_inicial + epsilon_rec * (T4_real - T10_inicial)
 
+            # Actualizar C11 para realimentar el balance energético en la siguiente iteración
+            self.corrientes[11] = Corriente(
+                "CO2 precalentado (salida recuperador)",
+                T=T11_new,
+                P=self.params['P_combustion'],
+                composicion={"CO2": 1.0},
+                flujo_molar=n_CO2_recirculado_new
+            )
+            self.corrientes[11].calcular_propiedades()
+
             # Verificar convergencia de TRES variables: T11, n_CO2_recirc, T_combustion
             error_T11 = abs(T11_new - T11_old)
             error_n = abs(n_CO2_recirculado_new - n_CO2_recirculado_old)
@@ -1072,35 +1082,6 @@ class SimuladorBrayton:
             flujo_molar=n_CO2_recirculado_actual
         )
         self.corrientes[9].calcular_propiedades()  # Auto: HEOS (CO2 puro)
-
-        # ====================================================================
-        # CORRIENTE 10: CO2 enfriado → SALE INTERCAMBIADOR 3, ENTRA AL RECUPERADOR
-        # ====================================================================
-        T10 = self.params['T_ambiente'] + 15
-
-        self.corrientes[10] = Corriente(
-            "CO2 enfriado (salida intercambiador 3)",
-            T=T10,
-            P=P_recirculacion,
-            composicion={"CO2": 1.0},
-            flujo_molar=n_CO2_recirculado_actual
-        )
-        self.corrientes[10].calcular_propiedades()  # Auto: HEOS (CO2 puro)
-
-        # ====================================================================
-        # CORRIENTE 11: CO2 precalentado → SALE RECUPERADOR, ENTRA A COMBUSTIÓN
-        # ====================================================================
-        # Calentamiento en el recuperador (C10 → C11)
-        T11 = self.corrientes[10].T + epsilon_rec * (self.corrientes[4].T - self.corrientes[10].T)
-
-        self.corrientes[11] = Corriente(
-            "CO2 precalentado (salida recuperador)",
-            T=T11,
-            P=self.params['P_combustion'],
-            composicion={"CO2": 1.0},
-            flujo_molar=n_CO2_recirculado_actual
-        )
-        self.corrientes[11].calcular_propiedades()  # Auto: HEOS (CO2 puro)
 
         # ====================================================================
         # CÁLCULOS ENERGÉTICOS
