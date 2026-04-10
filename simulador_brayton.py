@@ -138,6 +138,26 @@ def calcular_T_combustion_balance(H_entrada_combustor, n_total_productos,
             else:
                 return T_max
 
+def calcular_T_desde_propiedad(objetivo_val, propiedad, P, composicion, flujo_molar, T_min, T_max, metodo_mezcla=None):
+    """
+    Encuentra la temperatura correspondiente a una entalpía o entropía dada usando Ecuaciones de Estado.
+    """
+    def error_func(T):
+        c = Corriente("temp", T=T, P=P, composicion=composicion, flujo_molar=flujo_molar)
+        c.calcular_propiedades(metodo_mezcla=metodo_mezcla)
+        val = c.h if propiedad == 'h' else c.s
+        if val is None:
+            return 1e10
+        return val - objetivo_val
+
+    try:
+        return brentq(error_func, T_min, T_max, maxiter=50, xtol=0.1)
+    except ValueError:
+        error_min = error_func(T_min)
+        error_max = error_func(T_max)
+        if abs(error_min) < abs(error_max):
+            return T_min
+        return T_max
 
 class Corriente:
     """Clase para representar una corriente en el ciclo"""
@@ -500,6 +520,22 @@ class Corriente:
             if frac > 1e-6:
                 self.s -= R * frac * np.log(frac)
 
+        # CORRECCIÓN DE INTERACCIÓN MOLECULAR CO2-H2O
+        if "CO2" in self.composicion and "H2O" in self.composicion:
+            x_CO2 = self.composicion.get("CO2", 0)
+            x_H2O = self.composicion.get("H2O", 0)
+
+            if x_CO2 > 0.01 and x_H2O > 0.01:
+                Tr_CO2 = self.T / 304.13
+                if Tr_CO2 > 1.0:
+                    h_excess_mix = -x_CO2 * x_H2O * 5000 * (1 - 0.3*(Tr_CO2 - 1))
+                    h_excess_mix = max(h_excess_mix, -10000)
+                else:
+                    h_excess_mix = -x_CO2 * x_H2O * 3000
+                self.h += h_excess_mix
+                s_excess_mix = -x_CO2 * x_H2O * 2.0
+                self.s += s_excess_mix
+
     def _h_ideal_gas(self, T_ref=298.15):
         """Entalpía de gas ideal aproximada"""
         Cp = 35.0  # J/(mol·K) valor aproximado
@@ -636,12 +672,28 @@ class SimuladorBrayton:
                                           flujo_molar=n_combustible)
         corriente_entrada_comp.calcular_propiedades()  # Auto: HEOS para puros, PR para mezclas
 
-        # Temperatura de salida isentrópica (estimación usando relación politrópica)
-        gamma = 1.3  # Aproximación para hidrocarburos
-        T1_ideal = T_entrada_comp * (P_salida_comp / P_entrada_comp)**((gamma-1)/gamma)
-
-        # Temperatura real considerando eficiencia
-        T1_real = T_entrada_comp + (T1_ideal - T_entrada_comp) / eta_compresor_fuel
+        # Temperatura de salida considerando balance isentrópico real con CoolProp
+        if corriente_entrada_comp.s is not None and corriente_entrada_comp.h is not None:
+            # 1. Encontrar T isentrópica ideal
+            T1_ideal = calcular_T_desde_propiedad(
+                corriente_entrada_comp.s, 's', P_salida_comp, 
+                combustible.composicion, n_combustible, 
+                T_entrada_comp, T_entrada_comp + 800)
+            c_ideal = Corriente("temp_ideal", T=T1_ideal, P=P_salida_comp, 
+                              composicion=combustible.composicion, flujo_molar=n_combustible)
+            c_ideal.calcular_propiedades()
+            
+            # 2. Calcular entalpía real y buscar la T correspondiente
+            h1_real = corriente_entrada_comp.h + (c_ideal.h - corriente_entrada_comp.h) / eta_compresor_fuel
+            T1_real = calcular_T_desde_propiedad(
+                h1_real, 'h', P_salida_comp, 
+                combustible.composicion, n_combustible, 
+                T1_ideal, T_entrada_comp + 1500)
+        else:
+            # Fallback a gas ideal si CoolProp falla
+            gamma = 1.3
+            T1_ideal = T_entrada_comp * (P_salida_comp / P_entrada_comp)**((gamma-1)/gamma)
+            T1_real = T_entrada_comp + (T1_ideal - T_entrada_comp) / eta_compresor_fuel
 
         self.corrientes[1] = Corriente(
             "Combustible comprimido",
@@ -694,20 +746,6 @@ class SimuladorBrayton:
                 "   Matemáticamente: n_recirc = f/(1-f) × n_CO2_combustion → ∞ cuando f→1\n"
                 "   La fracción debe ser estrictamente menor a 1 (f < 1.0)"
             )
-
-        if fraccion_recirculacion > 0.97:
-            print(f"⚠ ADVERTENCIA: Fracción de recirculación = {fraccion_recirculacion:.1%} es extremadamente alta (>97%)")
-            print(f"   Flujo de recirculación = {fraccion_recirculacion/(1-fraccion_recirculacion):.1f} × n_CO2_combustion")
-            print("   Esto puede causar:")
-            print("   • Convergencia muy lenta (>15 iteraciones)")
-            print("   • Inestabilidad numérica")
-            print("   • Flujo másico muy alto en turbina y compresores")
-            print("   Nota: Valores 95-97% son típicos en Ciclo Allam, pero requieren cuidado numérico.\n")
-
-        elif fraccion_recirculacion > 0.90:
-            print(f"ℹ Info: Fracción de recirculación = {fraccion_recirculacion:.1%} es alta (>90%)")
-            print(f"   Flujo de recirculación = {fraccion_recirculacion/(1-fraccion_recirculacion):.1f} × n_CO2_combustion")
-            print("   Esto es NORMAL en oxicombustión para controlar T_combustión.\n")
 
         # Parámetros de iteración
         MAX_ITER = 20
@@ -917,11 +955,25 @@ class SimuladorBrayton:
             # Expansión isentrópica con eficiencia
             eta_turbina = self.params['eta_turbina']
 
-            # Temperatura de salida ideal (isentrópica)
-            T4_ideal = self.corrientes[3].T * (P_salida_turbina / self.params['P_combustion'])**((1.33-1)/1.33)
-
-            # Temperatura real considerando eficiencia
-            T4_real = self.corrientes[3].T - eta_turbina * (self.corrientes[3].T - T4_ideal)
+            if self.corrientes[3].s is not None and self.corrientes[3].h is not None:
+                # 1. T ideal garantizando s_out = s_in
+                T4_ideal = calcular_T_desde_propiedad(
+                    self.corrientes[3].s, 's', P_salida_turbina, 
+                    comp_productos_total, n_total_productos, 
+                    250.0, self.corrientes[3].T, metodo_mezcla="fugacidad")
+                c_ideal = Corriente("temp_ideal", T=T4_ideal, P=P_salida_turbina, 
+                                  composicion=comp_productos_total, flujo_molar=n_total_productos)
+                c_ideal.calcular_propiedades(metodo_mezcla="fugacidad")
+                
+                # 2. Entalpía real y búsqueda de su temperatura
+                h4_real = self.corrientes[3].h - eta_turbina * (self.corrientes[3].h - c_ideal.h)
+                T4_real = calcular_T_desde_propiedad(
+                    h4_real, 'h', P_salida_turbina, 
+                    comp_productos_total, n_total_productos, 
+                    T4_ideal, self.corrientes[3].T, metodo_mezcla="fugacidad")
+            else:
+                T4_ideal = self.corrientes[3].T * (P_salida_turbina / self.params['P_combustion'])**((1.33-1)/1.33)
+                T4_real = self.corrientes[3].T - eta_turbina * (self.corrientes[3].T - T4_ideal)
 
             self.corrientes[4] = Corriente(
                 "Salida turbina",
@@ -945,8 +997,30 @@ class SimuladorBrayton:
             # CALCULAR n_CO2_recirculado_new basado en C9
             n_CO2_recirculado_new = fraccion_recirculacion * n_CO2_puro
 
-            # Calcular T11_new basada en T4 real
-            T11_new = T10_inicial + epsilon_rec * (T4_real - T10_inicial)
+            # ====================================================================
+            # BALANCE DEL RECUPERADOR (Entalpías reales - 1ra Ley Termodinámica)
+            # ====================================================================
+            c10_temp = Corriente("t10", T=T10_inicial, P=self.params['P_combustion'], composicion={"CO2": 1.0}, flujo_molar=n_CO2_recirculado_new)
+            c10_temp.calcular_propiedades()
+            c10_max = Corriente("t10_max", T=T4_real, P=self.params['P_combustion'], composicion={"CO2": 1.0}, flujo_molar=n_CO2_recirculado_new)
+            c10_max.calcular_propiedades()
+            c4_min = Corriente("t4_min", T=T10_inicial, P=P_salida_turbina, composicion=comp_productos_total, flujo_molar=n_total_productos)
+            c4_min.calcular_propiedades()
+
+            if self.corrientes[4].h is not None and c4_min.h is not None and c10_temp.h is not None and c10_max.h is not None:
+                Q_hot_max = n_total_productos * (self.corrientes[4].h - c4_min.h)
+                Q_cold_max = n_CO2_recirculado_new * (c10_max.h - c10_temp.h)
+                
+                Q_max = min(Q_hot_max, Q_cold_max)
+                self._Q_rec_real = epsilon_rec * Q_max
+                
+                h11_real = c10_temp.h + self._Q_rec_real / n_CO2_recirculado_new
+                T11_new = calcular_T_desde_propiedad(
+                    h11_real, 'h', self.params['P_combustion'], 
+                    {"CO2": 1.0}, n_CO2_recirculado_new, T10_inicial, T4_real + 50)
+            else:
+                T11_new = T10_inicial + epsilon_rec * (T4_real - T10_inicial)
+                self._Q_rec_real = None
 
             # Actualizar C11 para realimentar el balance energético en la siguiente iteración
             self.corrientes[11] = Corriente(
@@ -965,17 +1039,12 @@ class SimuladorBrayton:
 
             if error_T11 < TOL_T and error_n < TOL_N and error_Tcomb < TOL_T:
                 # Convergió
-                if iter_count > 0:  # Solo mostrar si hubo iteración
-                    print(f"✓ Convergió en {iter_count+1} iteraciones (error_T11 = {error_T11:.3f} K, error_n = {error_n:.4f} mol/s, error_Tcomb = {error_Tcomb:.3f} K)")
                 break
 
             # Actualizar para siguiente iteración
             T11_old = T11_new
             n_CO2_recirculado_old = n_CO2_recirculado_new
             T_combustion_old = T_combustion_calculada
-        else:
-            # No convergió en MAX_ITER iteraciones
-            print(f"⚠ Advertencia: No convergió en {MAX_ITER} iteraciones (error_T11 = {error_T11:.3f} K, error_n = {error_n:.4f} mol/s, error_Tcomb = {error_Tcomb:.3f} K)")
 
         # Continuar con el resto de corrientes (C5-C12) fuera del bucle con valores convergidos
 
@@ -988,8 +1057,15 @@ class SimuladorBrayton:
         # Recirculación de CO2
         fraccion_recirculacion = self.params['fraccion_recirculacion']
 
-        # Temperatura de salida del recuperador
-        T5 = self.corrientes[4].T - epsilon_rec * (self.corrientes[4].T - (self.params['T_ambiente'] + 50))
+        # Temperatura de salida del recuperador usando balance de calor real
+        if hasattr(self, '_Q_rec_real') and self._Q_rec_real is not None and self.corrientes[4].h is not None:
+            h5_real = self.corrientes[4].h - self._Q_rec_real / n_total_productos
+            T5 = calcular_T_desde_propiedad(
+                h5_real, 'h', P_salida_turbina, 
+                comp_productos_total, n_total_productos, 
+                T10_inicial, self.corrientes[4].T)
+        else:
+            T5 = self.corrientes[4].T - epsilon_rec * (self.corrientes[4].T - (self.params['T_ambiente'] + 50))
 
         self.corrientes[5] = Corriente(
             "Salida recuperador",
@@ -1018,14 +1094,14 @@ class SimuladorBrayton:
         # CORRIENTE 7: CO2 puro (salida separador agua) - ENTRA A SEPARADOR DE FLUJOS
         # ====================================================================
         # El flujo de CO2 puro es todo el CO2 de los productos de combustión + recirculado
-        n_CO2_puro_total = n_total_productos * comp_productos_total.get("CO2", 0.5)
+        n_CO2_puro = n_total_productos * comp_productos_total.get("CO2", 0.5)
 
         self.corrientes[7] = Corriente(
             "CO2 puro (salida separador agua)",
             T=T6,
             P=P_salida_turbina,
             composicion={"CO2": 1.0},
-            flujo_molar=n_CO2_puro_total
+            flujo_molar=n_CO2_puro
         )
         self.corrientes[7].calcular_propiedades()  # Auto: HEOS (CO2 puro)
 
@@ -1037,7 +1113,7 @@ class SimuladorBrayton:
 
         # Calcular n_CO2_recirculado basado en iteración
         n_CO2_recirculado_actual = n_CO2_recirculado_old  # De iteración anterior
-        n_CO2_capturado = n_CO2_puro_total - n_CO2_recirculado_actual
+        n_CO2_capturado = n_CO2_puro - n_CO2_recirculado_actual
 
         # ====================================================================
         # CORRIENTE 8: CO2 para recirculación (salida separador) → ENTRA AL COMPRESOR
@@ -1070,9 +1146,24 @@ class SimuladorBrayton:
         P_recirculacion = self.params['P_recirculacion']
         eta_compresor_CO2 = self.params['eta_compresor_CO2']
 
-        # Compresión con eficiencia (C8 → C9)
-        T9_ideal = self.corrientes[8].T * (P_recirculacion / self.corrientes[8].P)**((1.33-1)/1.33)
-        T9_real = self.corrientes[8].T + (T9_ideal - self.corrientes[8].T) / eta_compresor_CO2
+        # Compresión isentrópica real a condiciones supercríticas (C8 → C9)
+        if self.corrientes[8].s is not None and self.corrientes[8].h is not None:
+            T9_ideal = calcular_T_desde_propiedad(
+                self.corrientes[8].s, 's', P_recirculacion, 
+                {"CO2": 1.0}, n_CO2_recirculado_actual, 
+                self.corrientes[8].T, self.corrientes[8].T + 1000)
+            c_ideal = Corriente("temp_ideal", T=T9_ideal, P=P_recirculacion, 
+                              composicion={"CO2": 1.0}, flujo_molar=n_CO2_recirculado_actual)
+            c_ideal.calcular_propiedades()
+            
+            h9_real = self.corrientes[8].h + (c_ideal.h - self.corrientes[8].h) / eta_compresor_CO2
+            T9_real = calcular_T_desde_propiedad(
+                h9_real, 'h', P_recirculacion, 
+                {"CO2": 1.0}, n_CO2_recirculado_actual, 
+                T9_ideal, self.corrientes[8].T + 1500)
+        else:
+            T9_ideal = self.corrientes[8].T * (P_recirculacion / self.corrientes[8].P)**((1.33-1)/1.33)
+            T9_real = self.corrientes[8].T + (T9_ideal - self.corrientes[8].T) / eta_compresor_CO2
 
         self.corrientes[9] = Corriente(
             "CO2 comprimido (salida compresor)",
@@ -1082,6 +1173,18 @@ class SimuladorBrayton:
             flujo_molar=n_CO2_recirculado_actual
         )
         self.corrientes[9].calcular_propiedades()  # Auto: HEOS (CO2 puro)
+
+        # ====================================================================
+        # CORRIENTE 10: CO2 enfriado → ENTRA AL RECUPERADOR LADO FRÍO
+        # ====================================================================
+        self.corrientes[10] = Corriente(
+            "CO2 enfriado (salida intercambiador)",
+            T=T10_inicial,
+            P=P_recirculacion,
+            composicion={"CO2": 1.0},
+            flujo_molar=n_CO2_recirculado_actual
+        )
+        self.corrientes[10].calcular_propiedades()
 
         # ====================================================================
         # CÁLCULOS ENERGÉTICOS
@@ -1118,10 +1221,7 @@ class SimuladorBrayton:
         if 8 in self.corrientes and 9 in self.corrientes and self.corrientes[8].h and self.corrientes[9].h:
             # C8 → C9: entrada y salida del compresor
             W_CO2comp_recirculacion = n_CO2_recirculado_actual * (self.corrientes[9].h - self.corrientes[8].h) / 1e6  # MW
-            # En la nueva configuración, solo se comprime la fracción recirculada
-            W_CO2comp_total = W_CO2comp_recirculacion  # Ya no hay "total", solo recirculación
         else:
-            W_CO2comp_total = 0
             W_CO2comp_recirculacion = 0
 
         # Trabajo ASU: W_ASU = mO2 * e_ASU
@@ -1182,7 +1282,6 @@ class SimuladorBrayton:
         # Guardar trabajos individuales para visualización
         self.W_turbina = W_turb
         self.W_compresor_fuel = W_comp
-        self.W_CO2comp_total = W_CO2comp_total
         self.W_CO2comp_recirculacion = W_CO2comp_recirculacion
         self.W_ASU = W_ASU
 
@@ -1202,47 +1301,6 @@ class SimuladorBrayton:
             # 3. Eficiencia global: Incluye también compresor de combustible
             # eta_CCS = (W_turb - W_comp_CO2_recirculacion - W_ASU - W_comp_combustible) / (n_combustible × LHV)
             self.eta_CCS = ((W_turb - W_CO2comp_recirculacion - W_ASU - W_comp) / Q_in_eficiencia) * 100
-
-            # DEBUG: Mostrar cálculo de eficiencias si hay valores anómalos
-            if self.eta_cycle > 100 or self.eta_O2 > 100 or self.eta_CCS > 100:
-                print(f"\n⚠️ ADVERTENCIA: Eficiencia >100% detectada")
-                print(f"{'='*80}")
-                print(f"ANÁLISIS DE EFICIENCIAS:")
-                print(f"  W_turb:           {W_turb:.3f} MW")
-                print(f"  W_comp_fuel:      {W_comp:.3f} MW")
-                print(f"  W_ASU:            {W_ASU:.3f} MW")
-                print(f"  W_CO2comp_recirc: {W_CO2comp_recirculacion:.3f} MW")
-                print(f"  Q_in (LHV):       {Q_in_eficiencia:.3f} MW")
-                print(f"  n_combustible:    {n_combustible:.2f} mol/s")
-                print(f"  n_total_productos:{n_total_productos:.2f} mol/s")
-                print(f"  Ratio n_prod/n_fuel: {n_total_productos/n_combustible:.1f}")
-                print(f"")
-                print(f"  W_neto = W_turb - W_CO2comp - W_ASU - W_comp_fuel")
-                print(f"         = {W_turb:.3f} - {W_CO2comp_recirculacion:.3f} - {W_ASU:.3f} - {W_comp:.3f}")
-                print(f"         = {W_turb - W_CO2comp_recirculacion - W_ASU - W_comp:.3f} MW")
-                print(f"")
-                print(f"  eta_cycle = (W_turb - W_CO2comp) / Q_in")
-                print(f"            = ({W_turb:.3f} - {W_CO2comp_recirculacion:.3f}) / {Q_in_eficiencia:.3f}")
-                print(f"            = {self.eta_cycle:.2f}%")
-                print(f"  eta_O2 = (W_turb - W_CO2comp - W_ASU) / Q_in")
-                print(f"         = ({W_turb:.3f} - {W_CO2comp_recirculacion:.3f} - {W_ASU:.3f}) / {Q_in_eficiencia:.3f}")
-                print(f"         = {self.eta_O2:.2f}%")
-                print(f"  eta_CCS = (W_turb - W_CO2comp - W_ASU - W_comp_fuel) / Q_in")
-                print(f"          = ({W_turb:.3f} - {W_CO2comp_recirculacion:.3f} - {W_ASU:.3f} - {W_comp:.3f}) / {Q_in_eficiencia:.3f}")
-                print(f"          = {self.eta_CCS:.2f}%")
-                print(f"")
-                if 3 in self.corrientes and 4 in self.corrientes:
-                    print(f"  T_combustion: {self.corrientes[3].T-273.15:.1f}°C")
-                    print(f"  T_salida_turb: {self.corrientes[4].T-273.15:.1f}°C")
-                    print(f"  Delta_T_turb: {(self.corrientes[3].T - self.corrientes[4].T):.1f} K")
-                    if self.corrientes[3].h and self.corrientes[4].h:
-                        print(f"  h_entrada_turb: {self.corrientes[3].h/1e6:.4f} MJ/mol")
-                        print(f"  h_salida_turb: {self.corrientes[4].h/1e6:.4f} MJ/mol")
-                        print(f"  Delta_h_turb: {(self.corrientes[3].h - self.corrientes[4].h)/1e6:.4f} MJ/mol")
-                print(f"{'='*80}\n")
-
-            # No limitar artificialmente - dejar que muestre el valor real
-            # Si hay errores, se verán en valores fuera de rango esperado
         else:
             self.eta_cycle = 0
             self.eta_O2 = 0
