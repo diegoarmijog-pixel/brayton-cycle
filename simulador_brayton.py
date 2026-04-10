@@ -641,7 +641,6 @@ class SimuladorBrayton:
         self.W_neto = 0
         self.Q_combustion = 0
         self.eta_cycle = 0  # Eficiencia del ciclo (turbina - compresor CO2)
-        self.eta_O2 = 0     # Eficiencia con ASU (incluye penalidad ASU)
         self.eta_CCS = 0    # Eficiencia global (incluye también compresor combustible)
         # NOTA: metodo_mezcla ya no es necesario como atributo
         # La clase Corriente selecciona automáticamente:
@@ -1294,16 +1293,11 @@ class SimuladorBrayton:
             # eta_cycle = (W_turb - W_comp_CO2_recirculacion) / (n_combustible × LHV)
             self.eta_cycle = ((W_turb - W_CO2comp_recirculacion) / Q_in_eficiencia) * 100
 
-            # 2. Eficiencia con ASU: Incluye penalidad por producción de O2
-            # eta_O2 = (W_turb - W_comp_CO2_recirculacion - W_ASU) / (n_combustible × LHV)
-            self.eta_O2 = ((W_turb - W_CO2comp_recirculacion - W_ASU) / Q_in_eficiencia) * 100
-
-            # 3. Eficiencia global: Incluye también compresor de combustible
-            # eta_CCS = (W_turb - W_comp_CO2_recirculacion - W_ASU - W_comp_combustible) / (n_combustible × LHV)
+            # 2. Eficiencia global: Incluye también compresor de combustible
+            # eta_CCS = (W_turb - W_comp_CO2_recirculacion - W_ASU - W_comp) / (n_combustible × LHV)
             self.eta_CCS = ((W_turb - W_CO2comp_recirculacion - W_ASU - W_comp) / Q_in_eficiencia) * 100
         else:
             self.eta_cycle = 0
-            self.eta_O2 = 0
             self.eta_CCS = 0
 
         return True
@@ -1516,7 +1510,6 @@ if has_base or has_sens or has_opt:
                     {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim, 'W_ASU', 0)},
                     {"Parámetro": "Calor Combustión (MW)", "Valor": sim.Q_combustion},
                     {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim.eta_cycle},
-                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim.eta_O2},
                     {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim.eta_CCS},
                     {"Parámetro": "T Combustión (°C)", "Valor": sim.T_combustion_calculada - 273.15 if hasattr(sim, 'T_combustion_calculada') else None}
                 ]
@@ -1562,7 +1555,6 @@ if has_base or has_sens or has_opt:
                     'W_neto (MW)': res.get('W_neto', [None]*len(res['f_recirculacion'])),
                     'eta_CCS (%)': res['eta_CCS'],
                     'eta_cycle (%)': res.get('eta_cycle', [None]*len(res['f_recirculacion'])),
-                    'eta_O2 (%)': res.get('eta_O2', [None]*len(res['f_recirculacion'])),
                     'W_turb (MW)': res['W_turb'],
                     'x_H2O_C4 (%)': res['x_H2O_C4'],
                     'T_combustion (°C)': res['T_combustion']
@@ -1609,7 +1601,6 @@ if has_base or has_sens or has_opt:
                     {"Parámetro": "Trabajo ASU (MW)", "Valor": getattr(sim_opt, 'W_ASU', 0)},
                     {"Parámetro": "Calor Combustión (MW)", "Valor": sim_opt.Q_combustion},
                     {"Parámetro": "Eficiencia Ciclo (%)", "Valor": sim_opt.eta_cycle},
-                    {"Parámetro": "Eficiencia con ASU (%)", "Valor": sim_opt.eta_O2},
                     {"Parámetro": "Eficiencia Global CCS (%)", "Valor": sim_opt.eta_CCS},
                     {"Parámetro": "T Combustión (°C)", "Valor": sim_opt.T_combustion_calculada - 273.15 if hasattr(sim_opt, 'T_combustion_calculada') else None}
                 ]
@@ -1919,17 +1910,13 @@ if tab2.is_active:
         st.markdown("---")
         st.subheader("Eficiencias Térmicas")
 
-        col3, col4, col5 = st.columns(3)
+        col3, col4 = st.columns(2)
 
         with col3:
             st.metric("η Ciclo", f"{simulador.eta_cycle:.2f} %",
                      help="Eficiencia del ciclo: turbina - compresor CO₂ recirculación")
 
         with col4:
-            st.metric("η con ASU", f"{simulador.eta_O2:.2f} %",
-                     help="Eficiencia con ASU: incluye penalidad de la unidad de separación de aire")
-
-        with col5:
             st.metric("η Global", f"{simulador.eta_CCS:.2f} %",
                      help="Eficiencia global: incluye también compresor de combustible")
 
@@ -2009,9 +1996,8 @@ if tab2.is_active:
             st.write(f"**W_neto** = W_turb - W_comp_fuel - W_ASU - W_comp_CO2_recirc = **{W_neto_calc:.3f} MW**")
 
             st.write(f"**η_cycle** = (W_turb - W_comp_CO2_recirc) / Q_in = **{simulador.eta_cycle:.2f}%**")
-            st.write(f"**η_O2** = (W_turb - W_comp_CO2_recirc - W_ASU) / Q_in = **{simulador.eta_O2:.2f}%**")
             st.write(f"**η_CCS (Global)** = (W_turb - W_comp_CO2_recirc - W_ASU - W_comp_fuel) / Q_in = **{simulador.eta_CCS:.2f}%**")
-            st.info("ℹ️ **Nota:** η_cycle considera turbina y compresor CO₂. η_O2 añade penalidad ASU. η_CCS (global) incluye también compresor de combustible.")
+            st.info("ℹ️ **Nota:** η_cycle considera turbina y compresor CO₂. η_CCS (global) incluye ASU y compresor de combustible.")
 
             st.markdown("---")
             st.markdown("### 🌡️ TEMPERATURAS Y PRESIONES CRÍTICAS")
@@ -2420,7 +2406,6 @@ if tab5.is_active:
                 'W_neto': [],
                 'eta_CCS': [],
                 'eta_cycle': [],
-                'eta_O2': [],
                 'W_turb': [],
                 'x_H2O_C4': [],
                 'T_combustion': [],  # Temperatura de combustión calculada
@@ -2468,7 +2453,6 @@ if tab5.is_active:
                         resultados['W_neto'].append(sim.W_neto)
                         resultados['eta_CCS'].append(sim.eta_CCS)
                         resultados['eta_cycle'].append(sim.eta_cycle)
-                        resultados['eta_O2'].append(sim.eta_O2)
                         resultados['W_turb'].append(sim.W_turbina)  # Trabajo de turbina (no W_neto)
 
                         # Obtener temperatura de combustión
@@ -2501,7 +2485,6 @@ if tab5.is_active:
                         resultados['W_neto'].append(None)
                         resultados['eta_CCS'].append(None)
                         resultados['eta_cycle'].append(None)
-                        resultados['eta_O2'].append(None)
                         resultados['W_turb'].append(None)
                         resultados['x_H2O_C4'].append(None)
                         resultados['T_combustion'].append(None)
@@ -2513,7 +2496,6 @@ if tab5.is_active:
                     resultados['W_neto'].append(None)
                     resultados['eta_CCS'].append(None)
                     resultados['eta_cycle'].append(None)
-                    resultados['eta_O2'].append(None)
                     resultados['W_turb'].append(None)
                     resultados['x_H2O_C4'].append(None)
                     resultados['T_combustion'].append(None)
@@ -2937,7 +2919,6 @@ if tab6.is_active:
 
                 # Calcular eficiencias
                 eta_ciclo = sim.eta_cycle if sim.eta_cycle is not None else 0
-                eta_O2 = sim.eta_O2 if sim.eta_O2 is not None else 0
                 eta_CCS = sim.eta_CCS if sim.eta_CCS is not None else 0
 
                 # RESTRICCIÓN: Potencia neta mínima (evitar soluciones de alta eficiencia pero baja potencia)
@@ -3140,7 +3121,7 @@ if tab6.is_active:
         # TABLA 3: Eficiencias
         st.subheader("⚡ Tabla 3: Eficiencias del Ciclo")
 
-        col_eff1, col_eff2, col_eff3 = st.columns(3)
+        col_eff1, col_eff2 = st.columns(2)
 
         with col_eff1:
             st.metric(
@@ -3149,12 +3130,6 @@ if tab6.is_active:
             )
 
         with col_eff2:
-            st.metric(
-                label="η con ASU",
-                value=f"{sim_optimo.eta_O2:.2f} %"
-            )
-
-        with col_eff3:
             st.metric(
                 label="η Global",
                 value=f"{sim_optimo.eta_CCS:.2f} %"
