@@ -1353,7 +1353,6 @@ T_ambiente = st.sidebar.number_input(
 P_combustion = st.sidebar.number_input(
     "Presión de Combustión / Almacenamiento (MPa)",
     min_value=7.377,
-    max_value=30.0,
     value=30.0,
     step=0.5,
     help="⚠️ Restricción: P ≥ 7.377 MPa (Pc del CO₂) para recirculación supercrítico. Mayor presión → Mayor ratio de expansión → Mayor eficiencia. Valor óptimo: 10-20 MPa"
@@ -1366,7 +1365,6 @@ T_combustion = 1600.0  # °C (estimación inicial)
 P_salida_turbina = st.sidebar.number_input(
     "Presión Salida Turbina (MPa)",
     min_value=0.1,
-    max_value=5.0,
     value=3.0,
     step=0.01,
     help="Menor presión → Mayor expansión → Mayor trabajo. Mínimo: 0.1 MPa (1 bar, atmosférica). Máximo recomendado: 0.5 MPa para facilitar condensación de H₂O."
