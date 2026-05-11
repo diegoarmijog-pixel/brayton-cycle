@@ -3175,20 +3175,63 @@ if tab7.is_active:
     st.header("💰 Análisis Económico Estimado (CAPEX)")
     
     st.markdown("""
-    Este módulo estima el **Gasto de Capital (CAPEX)** de los equipos principales basándose en los resultados de la simulación actual. 
-    Se utiliza el **Método de Costo Modular (Estimación Clase 5)** empleando correlaciones heurísticas de ingeniería química (regla de la capacidad).
+    Para el caso específico del **Ciclo Abierto de Oxicombustión**, la metodología de cálculo es de naturaleza híbrida, combinando la ingeniería de turbomaquinaria de alta temperatura con procesos de separación química de gases.
+
+    **1. Bloque de Potencia (Turbomaquinaria y Recuperación)** *(Weiland 2017, Jiang 2018)*
+    $$C = a \cdot (SP)^b \cdot f_T$$
+    - **$C$**: Costo del equipo en USD (Año base 2017).
+    - **$a, b$**: Coeficiente base absoluto y exponente de economía de escala.
+    - **$SP$**: Parámetro de escala (Potencia de Eje $MW_{sh}$ o Conductancia Global $UA$).
+    - **$f_T$**: Factor de penalización térmica. En el ciclo abierto, la turbina opera con productos de oxicombustión directa, justificando el uso de **$f_T = 15$** debido a la necesidad de álabes refrigerados y materiales cerámicos.
+
+    **2. Planta Química (ASU y Compresión de Salida)** *(DOE / NETL QGESS)*
+    $$SC = RC \cdot \left( \\frac{SP}{RP} \\right)^b$$
+    - **$SC$**: Costo escalado (Scaled Cost).
+    - **$RC$**: Costo de referencia de una planta comercial conocida.
+    - **$RP$**: Parámetro de la planta de referencia (ej. $95.9$ TPD de $O_2$ para la ASU).
     """)
 
     if simulacion_exitosa and simulador:
         # Inputs financieros configurables
-        with st.expander("⚙️ Parámetros Financieros y Factores de Costo", expanded=False):
+        with st.expander("⚙️ Parámetros Financieros y Coeficientes del PDF", expanded=True):
+            st.markdown("### 1. Índices Económicos y Factores Térmicos")
             col1, col2 = st.columns(2)
             with col1:
-                cepci_actual = st.number_input("Índice CEPCI Actual", value=800.0, help="Chemical Engineering Plant Cost Index del año de estudio.")
-                cepci_base = st.number_input("Índice CEPCI Base", value=597.0, help="CEPCI del año de las correlaciones base (ej. 597 para 2001).")
+                cepci_actual = st.number_input("Índice CEPCI Actual", value=567.5, help="Chemical Engineering Plant Cost Index del año de estudio.")
+                cepci_base = st.number_input("Índice CEPCI Año Base (2017)", value=567.5, help="Normalizado a 2017 para mantener vigencia de las curvas.")
             with col2:
-                fm_turbina = st.number_input("Factor Material Turbina (F_M)", value=3.0, help="Multiplicador por aleaciones avanzadas (Inconel) para alta temperatura.")
-                fp_compresores = st.number_input("Factor Presión Compresores (F_P)", value=1.5, help="Multiplicador por operación a alta presión/régimen supercrítico.")
+                k_t = st.number_input("Coeficiente polinómico Inconel ($k_T$)", value=0.000214, format="%.6f", help="Ajusta el sobrecosto de superaleaciones de níquel (ej. Regenerador a 650°C -> f_T ≈ 3.14).")
+                f_t_turbina = st.number_input("Factor $f_T$ Fijo (Turbina)", value=15.0, step=1.0, help="Fijo en 15.0 para reflejar el costo de álabes refrigerados por oxicombustión.")
+                f_t_max = st.number_input("Límite máximo de $f_T$", value=5.0, step=0.1, help="Evita que el costo explote a temperaturas extremas.")
+
+            st.markdown("---")
+            st.markdown("### 2. Coeficientes de Costo de Equipos")
+            col_eq1, col_eq2, col_eq3 = st.columns(3)
+            
+            with col_eq1:
+                st.markdown("**Turbina de Expansión** *(Weiland 2017)*")
+                a_turb = st.number_input("a (Turbina)", value=182600.0, format="%.1f")
+                b_turb = st.number_input("b (Turbina)", value=0.5561, format="%.4f")
+                st.markdown("**Cámara de Combustión** *(Weiland 2017)*")
+                a_comb = st.number_input("a (Combustor)", value=632900.0, format="%.1f")
+                b_comb = st.number_input("b (Combustor)", value=0.6000, format="%.4f")
+
+            with col_eq2:
+                st.markdown("**Regenerador PCHE** *(Jiang 2018)*")
+                a_rec = st.number_input("a (Regenerador)", value=49.45, format="%.2f")
+                b_rec = st.number_input("b (Regenerador)", value=0.7544, format="%.4f")
+                st.markdown("**Condensador** *(Jiang 2018)*")
+                a_cond = st.number_input("a (Condensador)", value=32.88, format="%.2f")
+                b_cond = st.number_input("b (Condensador)", value=0.7500, format="%.4f")
+                
+            with col_eq3:
+                st.markdown("**Compresores (Rec y Comb)** *(Weiland 2017)*")
+                a_comp = st.number_input("a (Compresores)", value=1230000.0, format="%.1f")
+                b_comp = st.number_input("b (Compresores)", value=0.3992, format="%.4f")
+                st.markdown("**ASU (Criogénica)** *(NETL QGESS)*")
+                rc_asu = st.number_input("RC (ASU) [M USD]", value=150.0, format="%.1f")
+                rp_asu = st.number_input("RP base (ASU)", value=5000.0, format="%.1f", help="Escalamiento más riguroso para plantas piloto (TPD).")
+                b_asu = st.number_input("b (ASU)", value=0.6000, format="%.4f")
 
         # Extraer variables de diseño de la simulación (Capacidades)
         W_turb = getattr(simulador, 'W_turbina', 0)
@@ -3199,38 +3242,91 @@ if tab7.is_active:
         # Calor del recuperador (J/s a MW)
         Q_rec = (simulador._Q_rec_real / 1e6) if hasattr(simulador, '_Q_rec_real') and simulador._Q_rec_real else 0
         
-        # Capacidad de la ASU (Flujo de O2)
-        # n_O2 está en mol/s. 1 mol O2 = 32g. Ton/día = mol/s * 32 g/mol * (1 kg/1000g) * (1 ton/1000kg) * 86400 s/dia
+        # Capacidad de la ASU (Flujo de O2 en Toneladas Por Día - TPD)
         n_O2 = simulador.corrientes[2].flujo_molar if 2 in simulador.corrientes else 0
         tons_o2_day = n_O2 * 32 * 0.0864
 
-        # Función genérica de estimación (C = C_base * (Cap / Cap_base)^n * Fm * Fp * (CEPCI/CEPCI_base))
+        # Funciones auxiliares para calcular Conductancias Globales (UA)
+        def calc_LMTD(dT1, dT2):
+            if dT1 <= 0 or dT2 <= 0: return max(0.1, (dT1 + dT2) / 2)
+            if abs(dT1 - dT2) < 1e-3: return dT1
+            return (dT1 - dT2) / np.log(dT1 / dT2)
+
+        # UA Regenerador (W/K)
+        T4 = simulador.corrientes[4].T if 4 in simulador.corrientes else 0
+        T5 = simulador.corrientes[5].T if 5 in simulador.corrientes else 0
+        T10 = simulador.corrientes[10].T if 10 in simulador.corrientes else 0
+        T11 = simulador.corrientes[11].T if 11 in simulador.corrientes else 0
+        Q_rec_W = simulador._Q_rec_real if hasattr(simulador, '_Q_rec_real') and simulador._Q_rec_real else 0
+        LMTD_rec = calc_LMTD(T4 - T11, T5 - T10)
+        UA_rec = Q_rec_W / LMTD_rec if LMTD_rec > 0 else 0
+
+        # UA Condensador (W/K)
+        T6 = simulador.corrientes[6].T if 6 in simulador.corrientes else 0
+        h5 = simulador.corrientes[5].h if 5 in simulador.corrientes else 0
+        h6 = simulador.corrientes[6].h if 6 in simulador.corrientes else 0
+        n_tot = simulador.corrientes[5].flujo_molar if 5 in simulador.corrientes else 0
+        Q_cond_W = n_tot * (h5 - h6) if h5 and h6 else 0
+        Tamb = simulador.params['T_ambiente']
+        T_cold_out = Tamb + 10  # Delta estándar de agua de enfriamiento
+        LMTD_cond = calc_LMTD(T5 - T_cold_out, T6 - Tamb)
+        UA_cond = Q_cond_W / LMTD_cond if LMTD_cond > 0 else 0
+
+        # Temperaturas críticas para penalización térmica (f_T)
+        T_turb_in = (simulador.corrientes[3].T - 273.15) if 3 in simulador.corrientes and simulador.corrientes[3].T else 0
+        T_rec_in = (simulador.corrientes[4].T - 273.15) if 4 in simulador.corrientes and simulador.corrientes[4].T else 0
+
         factor_cepci = cepci_actual / cepci_base
 
-        def estimar_costo(c_base_MM, cap, cap_base, n, fm=1.0, fp=1.0):
-            if cap <= 0: return 0.0
-            return c_base_MM * ((cap / cap_base) ** n) * fm * fp * factor_cepci
+        # =========================================================
+        # Funciones de Metodología de Costos
+        # =========================================================
+        def factor_termico(T_celsius):
+            if T_celsius > 550.0:
+                ft_calc = 1.0 + k_t * ((T_celsius - 550.0) ** 2)
+                return min(ft_calc, f_t_max) # Aplica el límite máximo
+            return 1.0
 
-        # Aplicar heurísticas (Valores base conceptuales en Millones de USD)
-        cost_turbina = estimar_costo(c_base_MM=3.0, cap=W_turb, cap_base=10.0, n=0.7, fm=fm_turbina)
-        cost_comp_fuel = estimar_costo(c_base_MM=1.5, cap=W_comp_fuel, cap_base=5.0, n=0.7, fp=fp_compresores)
-        cost_comp_co2 = estimar_costo(c_base_MM=2.5, cap=W_comp_co2, cap_base=10.0, n=0.75, fp=fp_compresores)
-        cost_combustor = estimar_costo(c_base_MM=1.2, cap=Q_comb, cap_base=50.0, n=0.8, fm=2.0)
-        cost_recup = estimar_costo(c_base_MM=1.5, cap=Q_rec, cap_base=20.0, n=0.65, fp=1.5)
-        cost_asu = estimar_costo(c_base_MM=15.0, cap=tons_o2_day, cap_base=500.0, n=0.7)
-        cost_separador = 0.5 * factor_cepci # Recipiente flash estándar
+        def costo_absoluto(a, SP, b, f_t_val):
+            if SP <= 0: return 0.0
+            costo = a * (SP ** b) * f_t_val * factor_cepci
+            return costo / 1e6  # Retorna directamente en Millones de USD
 
-        total_capex = cost_turbina + cost_comp_fuel + cost_comp_co2 + cost_combustor + cost_recup + cost_asu + cost_separador
+        def costo_escalado(RC, SP, RP, b):
+            if SP <= 0 or RP <= 0: return 0.0
+            return RC * ((SP / RP) ** b) * factor_cepci
+
+        # 1. Bloque de Potencia (Turbomaquinaria y Equipos Térmicos)
+        # Turbina: Uso exclusivo de álabes refrigerados ($f_T=15$) por productos de combustión directa
+        cost_turbina = costo_absoluto(a=a_turb, SP=W_turb, b=b_turb, f_t_val=f_t_turbina)
+        
+        cost_comp_co2 = costo_absoluto(a=a_comp, SP=W_comp_co2, b=b_comp, f_t_val=1.0)
+        cost_comp_fuel = costo_absoluto(a=a_comp, SP=W_comp_fuel, b=b_comp, f_t_val=1.0)
+        
+        # Regenerador: Aplica factor térmico ($f_T$) estándar (ej. para Inconel a 650°C)
+        fT_rec = factor_termico(T_rec_in)
+        cost_recup = costo_absoluto(a=a_rec, SP=UA_rec, b=b_rec, f_t_val=fT_rec)
+        
+        # Condensador
+        cost_condensador = costo_absoluto(a=a_cond, SP=UA_cond, b=b_cond, f_t_val=1.0)
+        
+        # Cámara de combustión
+        cost_combustor = costo_absoluto(a=a_comb, SP=Q_comb, b=b_comb, f_t_val=1.0)
+
+        # 2. Planta Química (Escalamiento por Referencia DOE/NETL)
+        cost_asu = costo_escalado(RC=rc_asu, SP=tons_o2_day, RP=rp_asu, b=b_asu)
+
+        total_capex = cost_turbina + cost_comp_fuel + cost_comp_co2 + cost_combustor + cost_recup + cost_condensador + cost_asu
 
         # Agrupar en DataFrame
         datos_costos = [
             {"Equipo": "Turbina de Expansión", "Variable Diseño": f"{W_turb:.1f} MW", "CAPEX Estimado (M USD)": cost_turbina},
-            {"Equipo": "Air Separation Unit (ASU)", "Variable Diseño": f"{tons_o2_day:.1f} ton O₂/día", "CAPEX Estimado (M USD)": cost_asu},
-            {"Equipo": "Compresor CO₂ (Recirculación)", "Variable Diseño": f"{W_comp_co2:.1f} MW", "CAPEX Estimado (M USD)": cost_comp_co2},
+            {"Equipo": "Unidad de Separación de Aire (ASU)", "Variable Diseño": f"{tons_o2_day:.1f} ton/día", "CAPEX Estimado (M USD)": cost_asu},
+            {"Equipo": "Compresores de CO₂", "Variable Diseño": f"{W_comp_co2:.1f} MW", "CAPEX Estimado (M USD)": cost_comp_co2},
             {"Equipo": "Compresor de Combustible", "Variable Diseño": f"{W_comp_fuel:.1f} MW", "CAPEX Estimado (M USD)": cost_comp_fuel},
-            {"Equipo": "Recuperador de Calor", "Variable Diseño": f"{Q_rec:.1f} MW térmicos", "CAPEX Estimado (M USD)": cost_recup},
-            {"Equipo": "Cámara de Combustión", "Variable Diseño": f"{Q_comb:.1f} MW térmicos", "CAPEX Estimado (M USD)": cost_combustor},
-            {"Equipo": "Separador de Agua (Flash)", "Variable Diseño": "-", "CAPEX Estimado (M USD)": cost_separador}
+            {"Equipo": "Regenerador PCHE", "Variable Diseño": f"{UA_rec:.0f} W/K", "CAPEX Estimado (M USD)": cost_recup},
+            {"Equipo": "Condensador", "Variable Diseño": f"{UA_cond:.0f} W/K", "CAPEX Estimado (M USD)": cost_condensador},
+            {"Equipo": "Cámara de Oxicombustión", "Variable Diseño": f"{Q_comb:.1f} MW", "CAPEX Estimado (M USD)": cost_combustor}
         ]
         df_costos = pd.DataFrame(datos_costos)
         df_costos["% del Total"] = (df_costos["CAPEX Estimado (M USD)"] / total_capex) * 100
