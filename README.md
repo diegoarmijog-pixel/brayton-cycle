@@ -245,7 +245,7 @@ El simulador ejecuta:
 
 ### 4. Navegación y Resultados
 
-El simulador presenta una **interfaz de navegación jerárquica de 2 niveles** con 3 secciones principales:
+El simulador presenta una **interfaz de navegación jerárquica de 2 niveles** con 4 secciones principales:
 
 #### 📊 Sección 1: Datos Simulación
 Contiene 4 vistas accesibles mediante submenú:
@@ -341,6 +341,15 @@ Optimización multiparamétrica automática usando algoritmos evolutivos:
 - **Balance energético óptimo**: Trabajos y potencias
 - **Propiedades de corrientes**: Tabla completa del punto óptimo
 - **Descarga de resultados**: CSVs con parámetros y corrientes óptimas
+
+#### 💰 Sección 4: Análisis Económico
+Estimación conceptual de Gastos de Capital (CAPEX) nivel Clase 5 para evaluar la viabilidad financiera.
+
+**Características**:
+- **Cálculo automatizado**: Utiliza potencias, flujos y temperaturas extraídos directamente del balance de materia y energía del simulador.
+- **Costo Modular Modificado**: Emplea heurísticas clásicas (regla de la capacidad) parametrizadas, considerando índices de actualización (CEPCI) y factores de material rigurosos para condiciones supercríticas.
+- **Equipos costeados**: Turbina de expansión, ASU, compresores de combustible y recirculación de CO₂, cámara de combustión, recuperador térmico y separador flash.
+- **Visualización y Reporte**: Tabla detallada de rubros desglosados, gráfica de pastel interactiva usando Plotly, e indicador de inversión total descargable en CSV.
 
 ---
 
@@ -855,6 +864,9 @@ El código ha sido validado contra:
 **Licencia**: Uso académico restringido. No redistribuir sin autorización.
 
 ## Changelog
+
+### Versión 4.2 (Actualización Nueva)
+- ✅ **Módulo de Análisis Económico**: Nueva sección para la estimación automatizada de CAPEX de equipos mediante el método de Costos Modulares, utilizando las variables operacionales reales del ciclo (potencias térmicas y mecánicas). Se incluyen métricas de distribución visual (Plotly) y parámetros ajustables como el índice CEPCI.
 
 ### Versión 4.1 (Actualización Reciente)
 - ✅ **Limpieza de Código**: Eliminación de fórmulas redundantes y depuración de lógica.

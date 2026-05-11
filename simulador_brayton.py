@@ -1726,7 +1726,8 @@ main_menu_names = [
     "📊 Diagrama del Proceso",
     "📋 Datos Simulación",
     "🔬 Análisis de Sensibilidad",
-    "🎯 Optimización"
+    "🎯 Optimización",
+    "💰 Análisis Económico"
 ]
 
 # Submenús para "Datos Simulación"
@@ -1795,6 +1796,7 @@ tab3 = TabContext(selected_main_index == 1 and selected_sub == "📈 Diagrama P-
 tab4 = TabContext(selected_main_index == 1 and selected_sub == "📉 Diagrama T-S")
 tab5 = TabContext(selected_main_index == 2)  # Análisis de Sensibilidad
 tab6 = TabContext(selected_main_index == 3)  # Optimización
+tab7 = TabContext(selected_main_index == 4)  # Análisis Económico
 
 # ============================================================================
 # TAB 1: Diagrama del Proceso
@@ -3165,6 +3167,96 @@ if tab6.is_active:
 
     else:
         st.info("👆 Configura el combustible y el número de iteraciones, luego presiona **EJECUTAR OPTIMIZACIÓN**.")
+
+# ============================================================================
+# TAB 7: Análisis Económico
+# ============================================================================
+if tab7.is_active:
+    st.header("💰 Análisis Económico Estimado (CAPEX)")
+    
+    st.markdown("""
+    Este módulo estima el **Gasto de Capital (CAPEX)** de los equipos principales basándose en los resultados de la simulación actual. 
+    Se utiliza el **Método de Costo Modular (Estimación Clase 5)** empleando correlaciones heurísticas de ingeniería química (regla de la capacidad).
+    """)
+
+    if simulacion_exitosa and simulador:
+        # Inputs financieros configurables
+        with st.expander("⚙️ Parámetros Financieros y Factores de Costo", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                cepci_actual = st.number_input("Índice CEPCI Actual", value=800.0, help="Chemical Engineering Plant Cost Index del año de estudio.")
+                cepci_base = st.number_input("Índice CEPCI Base", value=597.0, help="CEPCI del año de las correlaciones base (ej. 597 para 2001).")
+            with col2:
+                fm_turbina = st.number_input("Factor Material Turbina (F_M)", value=3.0, help="Multiplicador por aleaciones avanzadas (Inconel) para alta temperatura.")
+                fp_compresores = st.number_input("Factor Presión Compresores (F_P)", value=1.5, help="Multiplicador por operación a alta presión/régimen supercrítico.")
+
+        # Extraer variables de diseño de la simulación (Capacidades)
+        W_turb = getattr(simulador, 'W_turbina', 0)
+        W_comp_fuel = getattr(simulador, 'W_compresor_fuel', 0)
+        W_comp_co2 = getattr(simulador, 'W_CO2comp_recirculacion', 0)
+        Q_comb = getattr(simulador, 'Q_combustion', 0)
+        
+        # Calor del recuperador (J/s a MW)
+        Q_rec = (simulador._Q_rec_real / 1e6) if hasattr(simulador, '_Q_rec_real') and simulador._Q_rec_real else 0
+        
+        # Capacidad de la ASU (Flujo de O2)
+        # n_O2 está en mol/s. 1 mol O2 = 32g. Ton/día = mol/s * 32 g/mol * (1 kg/1000g) * (1 ton/1000kg) * 86400 s/dia
+        n_O2 = simulador.corrientes[2].flujo_molar if 2 in simulador.corrientes else 0
+        tons_o2_day = n_O2 * 32 * 0.0864
+
+        # Función genérica de estimación (C = C_base * (Cap / Cap_base)^n * Fm * Fp * (CEPCI/CEPCI_base))
+        factor_cepci = cepci_actual / cepci_base
+
+        def estimar_costo(c_base_MM, cap, cap_base, n, fm=1.0, fp=1.0):
+            if cap <= 0: return 0.0
+            return c_base_MM * ((cap / cap_base) ** n) * fm * fp * factor_cepci
+
+        # Aplicar heurísticas (Valores base conceptuales en Millones de USD)
+        cost_turbina = estimar_costo(c_base_MM=3.0, cap=W_turb, cap_base=10.0, n=0.7, fm=fm_turbina)
+        cost_comp_fuel = estimar_costo(c_base_MM=1.5, cap=W_comp_fuel, cap_base=5.0, n=0.7, fp=fp_compresores)
+        cost_comp_co2 = estimar_costo(c_base_MM=2.5, cap=W_comp_co2, cap_base=10.0, n=0.75, fp=fp_compresores)
+        cost_combustor = estimar_costo(c_base_MM=1.2, cap=Q_comb, cap_base=50.0, n=0.8, fm=2.0)
+        cost_recup = estimar_costo(c_base_MM=1.5, cap=Q_rec, cap_base=20.0, n=0.65, fp=1.5)
+        cost_asu = estimar_costo(c_base_MM=15.0, cap=tons_o2_day, cap_base=500.0, n=0.7)
+        cost_separador = 0.5 * factor_cepci # Recipiente flash estándar
+
+        total_capex = cost_turbina + cost_comp_fuel + cost_comp_co2 + cost_combustor + cost_recup + cost_asu + cost_separador
+
+        # Agrupar en DataFrame
+        datos_costos = [
+            {"Equipo": "Turbina de Expansión", "Variable Diseño": f"{W_turb:.1f} MW", "CAPEX Estimado (M USD)": cost_turbina},
+            {"Equipo": "Air Separation Unit (ASU)", "Variable Diseño": f"{tons_o2_day:.1f} ton O₂/día", "CAPEX Estimado (M USD)": cost_asu},
+            {"Equipo": "Compresor CO₂ (Recirculación)", "Variable Diseño": f"{W_comp_co2:.1f} MW", "CAPEX Estimado (M USD)": cost_comp_co2},
+            {"Equipo": "Compresor de Combustible", "Variable Diseño": f"{W_comp_fuel:.1f} MW", "CAPEX Estimado (M USD)": cost_comp_fuel},
+            {"Equipo": "Recuperador de Calor", "Variable Diseño": f"{Q_rec:.1f} MW térmicos", "CAPEX Estimado (M USD)": cost_recup},
+            {"Equipo": "Cámara de Combustión", "Variable Diseño": f"{Q_comb:.1f} MW térmicos", "CAPEX Estimado (M USD)": cost_combustor},
+            {"Equipo": "Separador de Agua (Flash)", "Variable Diseño": "-", "CAPEX Estimado (M USD)": cost_separador}
+        ]
+        df_costos = pd.DataFrame(datos_costos)
+        df_costos["% del Total"] = (df_costos["CAPEX Estimado (M USD)"] / total_capex) * 100
+
+        # Interfaz de Resultados Económicos
+        st.subheader(f"Inversión Total Directa (CAPEX): **${total_capex:.2f} Millones USD**")
+        
+        df_mostrar = df_costos.copy()
+        df_mostrar["CAPEX Estimado (M USD)"] = df_mostrar["CAPEX Estimado (M USD)"].map("${:.2f} M".format)
+        df_mostrar["% del Total"] = df_mostrar["% del Total"].map("{:.1f}%".format)
+        
+        col_tabla, col_grafico = st.columns([1.2, 1])
+        with col_tabla:
+            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+            st.download_button(label="📥 Descargar Tabla de Costos (CSV)", data=df_costos.to_csv(index=False).encode('utf-8'), file_name="analisis_capex.csv", mime="text/csv")
+            
+        with col_grafico:
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=df_costos["Equipo"], values=df_costos["CAPEX Estimado (M USD)"],
+                hole=.4, hovertemplate="%{label}<br>$%{value:.2f} M USD<br>%{percent}<extra></extra>"
+            )])
+            fig_pie.update_layout(title="Distribución del CAPEX por Equipo", margin=dict(t=40, b=0, l=0, r=0), showlegend=False)
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+        st.info("👆 Ejecuta la simulación primero en 'Datos Simulación' para poder estimar los costos.")
 
 # ============================================================================
 # Footer (removido - más limpio sin footer)
