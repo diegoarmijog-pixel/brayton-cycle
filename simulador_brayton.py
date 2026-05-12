@@ -3210,7 +3210,7 @@ if tab7.is_active:
 
     if simulacion_exitosa and simulador:
         # Inputs financieros configurables
-        with st.expander("⚙️ Parámetros Financieros y Coeficientes del PDF", expanded=True):
+        with st.expander("⚙️ Parámetros Financieros y Coeficientes del PDF", expanded=False):
             st.markdown("### 1. Índices Económicos y Factores Térmicos")
             col1, col2 = st.columns(2)
             with col1:

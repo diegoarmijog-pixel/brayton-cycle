@@ -22,7 +22,7 @@ def iniciar():
     frame = tk.Frame(root, highlightbackground="#0068C9", highlightthickness=2)
     frame.pack(fill=tk.BOTH, expand=True)
     
-    label = tk.Label(frame, text="🚀 Iniciando Simulador de Ciclo Brayton...\n\nPor favor, espera unos segundos.", font=("Arial", 11))
+    label = tk.Label(frame, text="🚀 Iniciando Simulador\n\nPor favor, espera unos segundos.", font=("Arial", 11))
     label.pack(expand=True)
 
     # Obtener el directorio y lanzar Streamlit en segundo plano
