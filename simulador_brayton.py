@@ -3351,23 +3351,51 @@ if tab7.is_active:
         # Interfaz de Resultados Económicos
         st.subheader(f"Inversión Total Directa (CAPEX): **${total_capex:.2f} Millones USD**")
         
+        # Mapeo de colores para coincidir con los bloques del diagrama de flujo (diagrama_white.png)
+        color_map_equipos = {
+            "Turbina de Expansión": "#3d64ac",            # Azul/Gris (Turbina)
+            "Unidad de Separación de Aire (ASU)": "#a6b7cd", # Azul claro/gris (ASU)
+            "Compresores de CO₂": "#d16d2a",               # Naranja (Compresores)
+            "Compresor de Combustible": "#d16d2a",         # Naranja (Compresores)
+            "Regenerador PCHE": "#62983d",                 # Verde (Intercambiador de calor)
+            "Condensador": "#4672c4",                      # Azul oscuro (Enfriamiento/Condensador)
+            "Cámara de Oxicombustión": "#e0a900"           # Amarillo/Oro (Oxicombustión)
+        }
+        colores_barras = [color_map_equipos.get(eq, "#7f7f7f") for eq in df_costos["Equipo"]]
+
+        # Gráfico de barras horizontal primero
+        fig_bar = go.Figure(data=[go.Bar(
+            x=df_costos["CAPEX Estimado (M USD)"],
+            y=df_costos["Equipo"],
+            orientation='h',
+            text=[f"${val:.2f} M ({pct:.1f}%)" for val, pct in zip(df_costos["CAPEX Estimado (M USD)"], df_costos["% del Total"])],
+            textposition='auto',
+            marker=dict(
+                color=colores_barras,
+                line=dict(color='rgba(0,0,0,0.15)', width=1)
+            ),
+            hovertemplate="<b>%{y}</b><br>CAPEX: $%{x:.2f} M USD<br>Porcentaje: %{customdata:.1f}%<extra></extra>",
+            customdata=df_costos["% del Total"]
+        )])
+        
+        fig_bar.update_layout(
+            title="Distribución del CAPEX por Equipo",
+            xaxis_title="CAPEX (Millones USD)",
+            yaxis=dict(categoryorder='total ascending'),
+            margin=dict(t=50, b=50, l=220, r=20),
+            height=400,
+            hoverlabel=dict(bgcolor="white", font_size=12)
+        )
+        
+        st.plotly_chart(fig_bar, use_container_width=True)
+        
+        # Luego se muestra la tabla
         df_mostrar = df_costos.copy()
         df_mostrar["CAPEX Estimado (M USD)"] = df_mostrar["CAPEX Estimado (M USD)"].map("${:.2f} M".format)
         df_mostrar["% del Total"] = df_mostrar["% del Total"].map("{:.1f}%".format)
         
-        col_tabla, col_grafico = st.columns([1.2, 1])
-        with col_tabla:
-            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
-            st.download_button(label="📥 Descargar Tabla de Costos (CSV)", data=df_costos.to_csv(index=False).encode('utf-8'), file_name="analisis_capex.csv", mime="text/csv")
-            
-        with col_grafico:
-            fig_pie = go.Figure(data=[go.Pie(
-                labels=df_costos["Equipo"], values=df_costos["CAPEX Estimado (M USD)"],
-                hole=.4, hovertemplate="%{label}<br>$%{value:.2f} M USD<br>%{percent}<extra></extra>"
-            )])
-            fig_pie.update_layout(title="Distribución del CAPEX por Equipo", margin=dict(t=40, b=0, l=0, r=0), showlegend=False)
-            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_pie, use_container_width=True)
+        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+        st.download_button(label="📥 Descargar Tabla de Costos (CSV)", data=df_costos.to_csv(index=False).encode('utf-8'), file_name="analisis_capex.csv", mime="text/csv")
     else:
         st.info("👆 Ejecuta la simulación primero en 'Datos Simulación' para poder estimar los costos.")
 
