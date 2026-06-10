@@ -2006,7 +2006,7 @@ if tab2.is_active:
                     P8 = simulador.corrientes[8].P / 1e6  # MPa
                     P9 = simulador.corrientes[9].P / 1e6  # MPa
                     RC = P9 / P8
-                    st.warning(f"⚠️ **Ratio de compresión CO₂:** {RC:.1f} (de {P8:.3f} MPa a {P9:.2f} MPa)")
+                    st.write(f"**Ratio de compresión CO₂:** {RC:.1f} (de {P8:.3f} MPa a {P9:.2f} MPa)")
 
             # Trabajo ASU
             W_ASU_calc = n_O2 * 7000 / 1e6
