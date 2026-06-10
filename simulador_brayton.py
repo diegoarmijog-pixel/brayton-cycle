@@ -2405,7 +2405,7 @@ if tab5.is_active:
         num_pasos = st.number_input(
             "Número de pasos",
             min_value=3,
-            max_value=50,
+            max_value=100,
             value=10,
             step=1,
             help="Cantidad de puntos a simular entre min y max"
