@@ -1306,17 +1306,14 @@ class SimuladorBrayton:
 
 
 # ============================================================================
-# INTERFAZ DE STREAMLIT
-# ============================================================================
-
-# Botón de simulación (ubicado justo debajo del título)
-simular_btn = st.button("🔥 SIMULAR", type="primary")
-
-# ============================================================================
 # SIDEBAR - Parámetros de entrada
 # ============================================================================
 
 st.sidebar.header("⚙️ Parámetros de Simulación")
+
+# Botón de simulación (ubicado en el sidebar)
+simular_btn = st.sidebar.button("🔥 SIMULAR", type="primary", use_container_width=True)
+st.sidebar.markdown("---")
 
 # Tipo de combustible
 tipo_combustible = st.sidebar.selectbox(
@@ -1719,6 +1716,10 @@ if 'simulacion_exitosa' not in st.session_state:
 if simular_btn:
     with st.spinner('Ejecutando simulación...'):
         try:
+            # Guardar el simulador previo para calcular deltas
+            if st.session_state.get('simulador') is not None and st.session_state.get('simulacion_exitosa', False):
+                st.session_state['prev_simulador'] = st.session_state['simulador']
+
             st.session_state['simulador'] = SimuladorBrayton(parametros)
             st.session_state['simulacion_exitosa'] = st.session_state['simulador'].simular()
             if st.session_state['simulacion_exitosa']:
@@ -1731,8 +1732,9 @@ if simular_btn:
             st.session_state['simulador'] = None
 
 # Recuperar simulación desde session_state
-simulador = st.session_state['simulador']
-simulacion_exitosa = st.session_state['simulacion_exitosa']
+simulador = st.session_state.get('simulador')
+simulacion_exitosa = st.session_state.get('simulacion_exitosa', False)
+prev_simulador = st.session_state.get('prev_simulador')
 
 # ============================================================================
 # MENÚ PRINCIPAL - Navegación jerárquica de 2 niveles
@@ -1871,15 +1873,21 @@ if tab2.is_active:
         # Primera fila: Trabajo, Calor y Temperatura de Combustión
         col1, col2, col3 = st.columns(3)
 
+        delta_W = f"{(simulador.W_neto - prev_simulador.W_neto):.2f} MW" if prev_simulador else None
+        delta_Q = f"{(simulador.Q_combustion - prev_simulador.Q_combustion):.2f} MW" if prev_simulador else None
+        
+        T_comb_calc_C = simulador.T_combustion_calculada - 273.15 if hasattr(simulador, 'T_combustion_calculada') else 0
+        T_comb_prev_C = prev_simulador.T_combustion_calculada - 273.15 if prev_simulador and hasattr(prev_simulador, 'T_combustion_calculada') else None
+        delta_T = f"{(T_comb_calc_C - T_comb_prev_C):.1f} °C" if T_comb_prev_C is not None else None
+
         with col1:
-            st.metric("Trabajo Neto", f"{simulador.W_neto:.2f} MW")
+            st.metric("Trabajo Neto", f"{simulador.W_neto:.2f} MW", delta=delta_W)
 
         with col2:
-            st.metric("Calor de Combustión", f"{simulador.Q_combustion:.2f} MW")
+            st.metric("Calor de Combustión", f"{simulador.Q_combustion:.2f} MW", delta=delta_Q, delta_color="inverse")
 
         with col3:
-            T_comb_calc_C = simulador.T_combustion_calculada - 273.15 if hasattr(simulador, 'T_combustion_calculada') else 0
-            st.metric("T Combustión (calculada)", f"{T_comb_calc_C:.1f} °C",
+            st.metric("T Combustión (calculada)", f"{T_comb_calc_C:.1f} °C", delta=delta_T, delta_color="inverse",
                      help="Calculada mediante balance energético del combustor")
 
         # Advertencias dinámicas basadas en T_combustion calculada
@@ -1929,12 +1937,15 @@ if tab2.is_active:
 
         col3, col4 = st.columns(2)
 
+        delta_eta_cyc = f"{(simulador.eta_cycle - prev_simulador.eta_cycle):.2f} %" if prev_simulador else None
+        delta_eta_ccs = f"{(simulador.eta_CCS - prev_simulador.eta_CCS):.2f} %" if prev_simulador else None
+
         with col3:
-            st.metric("η Ciclo", f"{simulador.eta_cycle:.2f} %",
+            st.metric("η Ciclo", f"{simulador.eta_cycle:.2f} %", delta=delta_eta_cyc,
                      help="Eficiencia del ciclo: turbina - compresor CO₂ recirculación")
 
         with col4:
-            st.metric("η Global", f"{simulador.eta_CCS:.2f} %",
+            st.metric("η Global", f"{simulador.eta_CCS:.2f} %", delta=delta_eta_ccs,
                      help="Eficiencia global: incluye también compresor de combustible")
 
         # Panel de diagnóstico detallado
