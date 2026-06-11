@@ -1669,20 +1669,7 @@ if has_base or has_sens or has_opt:
 else:
     st.sidebar.info("Realice simulaciones para habilitar la descarga.")
 
-# ============================================================================
-# APAGADO DEL SERVIDOR
-# ============================================================================
-st.sidebar.markdown("---")
-if st.sidebar.button("🛑 Apagar Servidor", help="Cierra el proceso del simulador completamente"):
-    st.sidebar.success(
-        "✅ Servidor apagado en segundo plano.\n\n"
-        "Ya puedes cerrar esta pestaña del navegador de forma segura."
-    )
 
-    def kill_app():
-        time.sleep(1.5)  # Breve pausa para permitir que el mensaje se muestre en pantalla
-        os._exit(0)      # Fuerza el cierre inmediato del proceso de Python
-    threading.Thread(target=kill_app).start()
 
 # ============================================================================
 # Recopilar parámetros
