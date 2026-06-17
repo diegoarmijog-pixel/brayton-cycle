@@ -16,6 +16,54 @@ import threading
 # Configuración de la página
 st.set_page_config(page_title="Simulador Ciclo Brayton Oxicombustión", layout="wide")
 
+# Estilos personalizados (fondo gris claro, bordes redondeados para imágenes y gráficos)
+st.markdown("""
+<style>
+/* Color de fondo del simulador y la barra superior igual a la barra lateral */
+[data-testid="stAppViewContainer"] > .main,
+[data-testid="stHeader"] {
+    background-color: #f0f2f6 !important;
+}
+.stApp {
+    background-color: #f0f2f6 !important;
+}
+
+/* Sombreado para la barra lateral izquierda */
+[data-testid="stSidebar"] {
+    box-shadow: 3px 0 15px rgba(0,0,0,0.1) !important;
+}
+
+/* Bordes redondeados y espaciado para imágenes */
+[data-testid="stImage"] img {
+    border-radius: 15px;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    padding: 15px;
+    background-color: #ffffff;
+    box-sizing: border-box;
+}
+
+/* Bordes redondeados y espaciado para gráficos Plotly */
+[data-testid="stPlotlyChart"] {
+    border-radius: 15px;
+    overflow: hidden !important;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    background-color: #ffffff;
+    padding: 15px;
+}
+
+/* Mayor contraste para campos editables (fondo blanco) y botones +/- */
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"] > div,
+.stNumberInput button,
+[data-testid="stNumberInputStepUp"],
+[data-testid="stNumberInputStepDown"] {
+    background-color: #ffffff !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Título principal
 st.title("Simulador de Ciclo de Brayton Abierto con Oxicombustión")
 
