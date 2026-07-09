@@ -2128,41 +2128,16 @@ if tab2.is_active:
             T_comb_K = simulador.T_combustion_calculada
             T_comb_C = T_comb_K - 273.15
 
-            # Nivel crítico: fuera de límites absolutos
-            if T_comb_K >= 2000 + 273.15 - 10:  # > 1990°C
-                flujo_sugerido = flujo_combustible * 0.65
+            # Nivel crítico: temperatura por sobre la resistencia de materiales
+            if T_comb_C > 2000:
                 st.error(
-                    f"🚨 **CRÍTICO**: T_combustión = {T_comb_C:.1f}°C está en el límite máximo!\n\n"
-                    f"**Acción requerida**: Reducir flujo de combustible a **~{flujo_sugerido:.0f} mol/s**\n\n"
-                    f"⚠️ Resultados actuales NO son realistas (saturación en 2000°C)"
+                    f"🚨 **CRÍTICO**: Temperatura por sobre resistencia de materiales (T_combustión = {T_comb_C:.1f}°C)"
                 )
-            elif T_comb_K <= 1000 + 273.15 + 10:  # < 1010°C
-                flujo_sugerido = flujo_combustible * 1.4
-                st.error(
-                    f"🚨 **CRÍTICO**: T_combustión = {T_comb_C:.1f}°C está en el límite mínimo!\n\n"
-                    f"**Acción requerida**: Aumentar flujo de combustible a **~{flujo_sugerido:.0f} mol/s** o reducir recirculación\n\n"
-                    f"⚠️ Combustión inestable a esta temperatura"
-                )
-
-            # Nivel advertencia: fuera del rango ideal pero dentro de límites
-            elif T_comb_C > 1800:  # 1800-1990°C
-                flujo_sugerido = flujo_combustible * 0.85
+            # Nivel advertencia: temperatura alta (> 1800°C)
+            elif T_comb_C > 1800:
                 st.warning(
-                    f"⚠️ **Advertencia**: T_combustión = {T_comb_C:.1f}°C es alta (límite materiales ~1800°C)\n\n"
-                    f"**Recomendación**: Reducir flujo a **~{flujo_sugerido:.0f} mol/s** para mayor realismo"
+                    f"⚠️ **Advertencia**: T_combustión = {T_comb_C:.1f}°C es alta"
                 )
-            elif T_comb_C < 1200:  # 1010-1200°C
-                flujo_sugerido = flujo_combustible * 1.15
-                st.warning(
-                    f"⚠️ **Advertencia**: T_combustión = {T_comb_C:.1f}°C es baja para operación eficiente\n\n"
-                    f"**Recomendación**: Aumentar flujo a **~{flujo_sugerido:.0f} mol/s** para mejor eficiencia"
-                )
-
-            # Nivel info: rango óptimo
-            elif 1400 <= T_comb_C <= 1700:
-                st.success(f"✅ T_combustión = {T_comb_C:.1f}°C está en el rango óptimo (1400-1700°C)")
-            elif 1200 <= T_comb_C < 1400 or 1700 < T_comb_C <= 1800:
-                st.info(f"ℹ️ T_combustión = {T_comb_C:.1f}°C está en rango aceptable (1200-1800°C)")
 
         # Segunda fila: Tres eficiencias
         st.markdown("---")
@@ -2994,10 +2969,10 @@ if tab6.is_active:
     with col_opt2:
         max_evaluaciones_input = st.number_input(
             "Número máximo de evaluaciones",
-            min_value=100,
+            min_value=50,
             max_value=10000,
             value=1500,
-            step=100,
+            step=50,
             help="Número máximo de evaluaciones de la función objetivo que delimita el alcance de la optimización. " +
                  "Mayor valor = mejor exploración pero más tiempo. " +
                  "Rango sugerido: 500-1500 (rápido, ~2-5 min), 1500-3000 (balanceado, ~5-15 min), 3000-10000 (exhaustivo, ~15-45 min)",
