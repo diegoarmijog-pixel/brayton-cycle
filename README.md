@@ -863,6 +863,8 @@ El código ha sido validado contra:
 
 **Licencia**: Uso académico restringido. No redistribuir sin autorización.
 
+---
+
 ## Changelog
 
 ### Versión 4.2 (Actualización Nueva)
