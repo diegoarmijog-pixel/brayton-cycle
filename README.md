@@ -859,10 +859,6 @@ El código ha sido validado contra:
 
 ---
 
-## Licencia y Uso Académico
-
-**Licencia**: Uso académico restringido. No redistribuir sin autorización.
-
 ---
 
 ## Changelog
